@@ -1,0 +1,451 @@
+<html>
+
+
+<head>
+    <meta charset="UTF-8">
+
+    <title>Migaku MPV</title>
+
+    <link rel="shortcut icon" type="image/png" href="./icons/migakufavicon.png"/>
+    
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP&display=swap" rel="stylesheet"> 
+
+    <style>
+        body {
+            background-color: #111;
+            color: #EEE;
+            font-family: 'Noto Sans JP', sans-serif;
+            margin: 0;
+        }
+
+        #header {
+            height: 41px;
+        }
+
+        #subsList {
+            height: calc(100vh - 41px);
+            overflow-y: auto;
+        }
+
+        #versionInfo {
+            display: table;
+            text-align: center;
+            height: 100%;         
+            margin-right: 15px;
+            float: right;
+        }
+
+        #versionInfo > span {
+            display: table-cell;
+            vertical-align: middle;
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+
+<body>
+
+    <div id="header">
+        <div id="versionInfo"><span>v0.1.2 (Beta)</span></div>
+    </div>
+
+    <div id="subsList">
+    </div>
+
+    <script>
+        let eventSource = new EventSource('/data');     // Event source that provides updates like current subtitle etc...
+        
+        let subs = [];                                  // All loaded subs
+        let subIdsByStart = new Map();                  // Sub ids in list keyed by start time for seeking
+
+        let sub_selection_start = null;
+        let sub_selection_end = null;
+
+        // General log handler
+        function log(text)
+        {
+            console.log(text);
+        }
+
+        function get_sub_element_by_id(id)
+        {
+            return document.getElementById('subtit' + id.toString());
+        }
+
+        // Called when even source receives messages
+        // Format: jump position in seconds 
+        eventSource.onmessage = function(e)
+        {
+            log('[RECEIVED] ' + e.data);
+
+            var msg = e.data;
+
+            if (msg.length < 1)
+                return;
+
+            var cmd = msg[0];
+
+            if (cmd == 's')
+            {
+                time = parseFloat(msg.substring(1));
+
+                time_millis = Math.floor(time * 1000);
+
+                if (subIdsByStart.has(time_millis))
+                {
+                    id = subIdsByStart.get(time_millis);
+                    get_sub_element_by_id(id).scrollIntoView();
+                }
+            }
+            else if (cmd == 'r')
+            {
+                location.reload();
+            }
+        };
+        
+        // Called when event source is opened
+        eventSource.onopen = (event) =>
+        {
+            log('[OPEN] ' + event.data);
+        };
+
+        // Called when event source dies. Todo: Show message
+        eventSource.onerror = (event) =>
+        {
+            log('[ERROR] ' + event.data);
+
+            eventSource.close();
+
+            var subsList = document.getElementById('subsList');
+            subsList.innerHTML = '<h2>MPV Connection Closed.</h2>';
+        };
+
+        window.onbeforeunload = function(){
+            eventSource.close();                
+        }
+
+        function int_to_00_string(nbr)
+        {
+            text = nbr.toString();
+
+            while (text.length < 2)
+                text = '0' + text;
+            return text;
+        }
+
+        // Generate a timestamp from millisecs
+        function time_to_string(millisecs)
+        {
+            hours = Math.floor(millisecs / 3600000);
+            millisecs %= 3600000;
+            minutes = Math.floor(millisecs / 60000);
+            millisecs %= 60000;
+            seconds = Math.floor(millisecs / 1000);
+
+            ret = '';
+            if (hours > 0)
+                ret += hours.toString() + ':';
+            ret += int_to_00_string(minutes);
+            ret += ':';
+            ret += int_to_00_string(seconds);
+
+            return ret;
+        }
+        
+        // Sends a request to plugin to export an anki card
+        function request_card_export(text, unknowns, start, end)
+        {
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", "./anki", true);
+            xhr.setRequestHeader("Content-type", "text/plain;charset=UTF-8");
+            xhr.send(JSON.stringify([text, unknowns, start, end]));
+        }
+        
+        // Searches for a list of words in the migaku dictionary
+        function dict_search(words)
+        {
+            if (words.length < 1)
+                return;
+
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", "http://127.0.0.1:12345", true);
+            xhr.setRequestHeader("Content-type", "text/plain;charset=UTF-8");
+            xhr.send(JSON.stringify({ "dictSearch": words }));
+        }
+        
+        // Sends a control command to the plugin
+        function mpv_control(command, args=[])
+        {
+            var command_args = [command].concat(args);
+            var payload = { 'command': command_args };
+
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", "./mpv_control", true);
+            xhr.setRequestHeader("Content-type", "text/plain;charset=UTF-8");
+            xhr.send(JSON.stringify(payload));
+        }
+
+        // Returns all words marked as unknown by migaku
+        function get_unknowns_container(container)
+        {
+            var unknown_containers = container.querySelectorAll('.status-unknown');
+
+            var unknowns = [];
+
+            for (i = 0; i < unknown_containers.length; i++)
+            {
+                unknown_container = unknown_containers[i];
+                text_data = unknown_container.getAttribute('data-status-word')
+
+                if (text_data != null)
+                {
+                    // data-status-word format: wordkanji◴wordkana
+                    text_data_segs = text_data.split("◴");
+                    if (text_data_segs.length == 2)
+                    {
+                        unknowns.push(text_data_segs[0]);
+                    }
+                }
+            }
+
+            return unknowns;
+        }
+
+        // When search button is pressed
+        function on_search_click(container, event)
+        {
+            if (event.button != 0)
+                return;
+            event.stopPropagation();
+
+            // If text is selected, search for that
+            var selction_obj = window.getSelection();
+            if (selction_obj != null)
+            {
+                selection = selction_obj.toString().trim();
+                if (selection.length > 0)
+                {
+                    dict_search([selection]);
+                    return;
+                }
+            }
+            
+            // Otherwise search for all unknown words in sub container
+            var sub_element = container.parentElement.parentElement;
+            var unknowns = get_unknowns_container(sub_element);
+            dict_search(unknowns);
+        }
+
+        // When anki button is pressed
+        function on_anki_click(container, event)
+        {
+            if (event.button != 0)
+                return;
+            event.stopPropagation();
+
+            var sub_element = container.parentElement.parentElement;
+            var sub_id = parseInt(sub_element.getAttribute("id").substring('subtit'.length));
+
+            var export_sub_start = sub_id;
+            var export_sub_end = sub_id;
+            
+            if (sub_selection_start != null && sub_selection_end != null)
+            {
+                export_sub_start = sub_selection_start;
+                export_sub_end = sub_selection_end;
+            }
+
+            var start_sub_element = get_sub_element_by_id(export_sub_start);
+            var end_sub_element = get_sub_element_by_id(export_sub_end);
+    
+            var start = parseFloat(start_sub_element.getAttribute("data-start"));
+            var end = parseFloat(end_sub_element.getAttribute("data-end"));
+
+            var unknowns = [];
+            var texts = [];
+
+            for (var i = export_sub_start; i <= export_sub_end; i++)
+            {
+                texts.push(subs[i].text);
+                var i_unknowns = get_unknowns_container(get_sub_element_by_id(i));
+                unknowns = unknowns.concat(i_unknowns);
+            }
+
+            var text = texts.join('<br>');
+
+            // TODO: Fetch these from the plugin
+            var padding_start = 0.5;
+            var padding_end = 0.5;
+
+            start -= padding_start;
+            end += padding_end;
+
+            if (start < 0.0)
+                start = 0.0;
+            
+            clear_selection();
+            request_card_export(text, unknowns, start, end);
+        }
+
+        function clear_selection()
+        {
+            // Remove highlights
+            if (sub_selection_start != null && sub_selection_end != null)
+            {
+                for (var i = sub_selection_start; i <= sub_selection_end; i++)
+                    get_sub_element_by_id(i).classList.remove('miouters');
+            }
+
+            sub_selection_start = null;
+            sub_selection_end = null;
+        }
+
+        // Wehen time box is left clicked
+        function on_time_click(container, event)
+        {
+            // Only allow left click for selection
+            // Right click is managed by on_time_rightclick
+            if (event.button != 0)
+                return;
+
+            var sub_element = container.parentElement;
+            var sub_id = parseInt(sub_element.getAttribute("id").substring('subtit'.length));
+            
+            // Remove highlights
+            if (sub_selection_start != null && sub_selection_end != null)
+            {
+                for (var i = sub_selection_start; i <= sub_selection_end; i++)
+                    get_sub_element_by_id(i).classList.remove('miouters');
+            }
+            
+            // Calc new selection
+
+            // If nothing was selected
+            if (sub_selection_start == null || sub_selection_end == null)
+            {
+                sub_selection_start = sub_id;
+                sub_selection_end = sub_id;
+            }
+            else
+            {   
+                // Added entry at the edges of selection?
+                if (sub_id == sub_selection_start-1)
+                    sub_selection_start = sub_id;
+                else if (sub_id == sub_selection_end+1)
+                    sub_selection_end = sub_id;
+                
+                // Clicked last remaining selection? Then remove.
+                else if ((sub_id == sub_selection_start) && (sub_id == sub_selection_end))
+                {
+                    sub_selection_start = null;
+                    sub_selection_end = null;
+                }
+
+                // Removed edge of selection?
+                else if (sub_id == sub_selection_start)
+                    sub_selection_start++;
+                else if (sub_id == sub_selection_end)
+                    sub_selection_end--;
+
+                // Clicked on unrelated to selection.
+                else
+                {
+                    sub_selection_start = sub_id;
+                    sub_selection_end = sub_id;
+                }
+            }
+
+            // Highlight new selection
+            if (sub_selection_start != null && sub_selection_end != null)
+            {
+                for (var i = sub_selection_start; i <= sub_selection_end; i++)
+                    get_sub_element_by_id(i).classList.add('miouters');
+            }
+        }
+
+        // When time box is right clicked
+        function on_time_rightclick(container, event)
+        {
+            // Gets outer subtitle container
+            var sub_element = container.parentElement;
+            var sub_start = parseFloat(sub_element.getAttribute("data-start"));
+
+            mpv_control('seek', [sub_start, 'absolute']);
+            // mpv sometimes jumps to slightly before the sub so no subtitle update might be fired if paused
+            sub_element.scrollIntoView();                   
+
+            return false;   // don't show context menu
+        }
+
+
+        // Sets up the page from a list of subtitles
+        function loadSubs(subtitles)
+        {
+            subs = subtitles;
+            subIdsByStart = new Map();
+
+            var subsList = document.getElementById('subsList');
+
+            for (let i = 0; i < subtitles.length; i++)
+            {
+                var sub = subtitles[i];
+
+                subIdsByStart.set(sub.start, i);
+                
+                // Outer subtitle container
+                var subDiv = document.createElement('div');
+                subDiv.setAttribute('data-count', i);
+                subDiv.setAttribute('data-start', (sub.start / 1000));
+                subDiv.setAttribute('data-end', (sub.end / 1000));
+                subDiv.className = 'miouter';
+                subDiv.id = 'subtit' + i.toString();
+                subsList.appendChild(subDiv);
+                
+                // Subtitle text container (left)
+                htmlText = sub.text;                            // TODO: More escaping 'n stuff...
+                htmlText = htmlText.replace('\n', '<br>')
+                htmlText = htmlText.replace('\\n', '<br>')
+                htmlText = htmlText.replace('\\N', '<br>')
+                
+                var textDiv = document.createElement('div');
+                textDiv.className = 'misubtext';
+                textDiv.innerHTML = '<c.japanese>' + htmlText + '</c.japanese>';
+                subDiv.appendChild(textDiv);
+                
+                // Subtitle timestamp and buttons
+                var timeDiv = document.createElement('div');
+                timeDiv.className = 'misubtime';
+                timeDiv.setAttribute('oncontextmenu', 'return on_time_rightclick(this, event)');
+                timeDiv.setAttribute('onclick', 'on_time_click(this, event)');
+                timeDiv.innerHTML = time_to_string(sub.start) + ' - ' + time_to_string(sub.end) + '<br>'
+                    + '<img onclick="on_search_click(this, event)" src="./icons/bigsearch.png" class="migaku-browser-search-current">'
+                    + '<img onclick="on_anki_click(this, event)" src="./icons/anki.png" class="migaku-browser-add-sub">'
+                subDiv.appendChild(timeDiv);
+            }
+
+            if (subtitles.length < 1)
+            {
+                var msg = document.createElement('h2');
+                msg.innerHTML = 'No subtitles found.';
+                subsList.appendChild(msg);
+            }
+        }
+        
+        // Starts request for subtitles and sets up the page
+        fetch('./subs')
+        .then(res => res.json())
+        .then((out) => {
+            loadSubs(out);
+        })
+        .catch(err => {
+            throw err; /*alert('Loading subs failed');*/
+        });
+                
+    </script>
+
+</body>
+
+
+</html>
