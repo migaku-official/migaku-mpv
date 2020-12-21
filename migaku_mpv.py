@@ -8,6 +8,9 @@ import subprocess
 import psutil
 import pathlib
 import webbrowser
+import threading
+import traceback
+import platform
 from threading import Lock
 import pysubs2
 
@@ -46,6 +49,8 @@ reuse_last_tab = True
 ffmpeg = 'ffmpeg'
 skip_empty_subs = True
 subtitle_export_timeout = 7.5
+
+log_file = None
 
 
 ### Handlers for GET requests
@@ -237,7 +242,38 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
     data_queues_lock.release()
 
 
+def exception_hook(exc_type, exc_value, exc_traceback):
+    print('--------------')
+    print('UNHANDLED EXCEPTION OCCURED:\n')
+    print('Platform:', platform.platform())
+    print('Python:', sys.version.replace('\n', ' '))
+    traceback_strs = traceback.format_exception(exc_type, exc_value, exc_traceback)
+    traceback_str = ''.join(traceback_strs)
+    print(traceback_str)
+    print('EXITING')
+    
+    # What folllows is pretty dirty, but all threads need to die and I'm lazy right now
+    # TODO
+
+    try:
+        sys.stdout.flush()
+        sys.stderr.flush()
+
+        if log_file:
+            log_file.flush()
+            log_file.close()
+    except:
+        pass
+
+    os._exit(1)
+
+
+def exception_hook_threads(args):
+    exception_hook(args.exc_type, args.exc_value, args.exc_traceback)
+
+
 def main():
+    global log_file
     global mpv
     global host
     global port
@@ -246,16 +282,29 @@ def main():
     global ffmpeg
     global skip_empty_subs
 
+    sys.excepthook = exception_hook
+    threading.excepthook = exception_hook_threads
+
     # Redirect stdout/stderr to log file if built for release
     if plugin_is_packaged:
-        sys.stdout = open(plugin_dir + '/log.txt', 'w', encoding='utf8')
-        sys.stderr = sys.stdout
+        log_file = open(plugin_dir + '/log.txt', 'w', encoding='utf8')
+        sys.stdout = log_file
+        sys.stderr = log_file
+
+    # Check command line args
+    if len(sys.argv) != 2 and len(sys.argv) != 3:
+        print('Invalid arguments.\nUsage: %s mpv-ipc-handle [config path]')
+        return
+
+    config_path = plugin_dir + '/migaku_mpv.cfg'
+    if len(sys.argv) >= 3:
+        config_path = sys.argv[2]
 
     # Make temp dir
     os.makedirs(tmp_dir, exist_ok=True)
 
     # Load config
-    config_f = open(plugin_dir + '/migaku_mpv.cfg', 'r', encoding="utf-8")
+    config_f = open(config_path, 'r', encoding="utf-8")
     for line in config_f:
         line = line.strip()
         if line.startswith('#'):
@@ -269,6 +318,7 @@ def main():
         value = line[equals_pos+1:].strip()
         config[key] = value
     config_f.close()
+    print('CFG:', config)
 
     host = config.get('host', '127.0.0.1')
     try:
@@ -321,7 +371,7 @@ def main():
 
     # Main loop, exits when IPC connection closes
     for data in mpv.listen():
-        print(data)
+        print('MPV:', data)
         if ('event' in data) and (data['event'] == 'client-message'):
             event_args = data.get('args', [])
             if len(event_args) >= 2 and event_args[0] == '@migaku':
