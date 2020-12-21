@@ -60,10 +60,11 @@
         let subs = [];                                  // All loaded subs
         let subIdsByStart = new Map();                  // Sub ids in list keyed by start time for seeking
 
+        let current_sub_id = null;
+
         let sub_selection_start = null;
         let sub_selection_end = null;
 
-        // General log handler
         function log(text)
         {
             console.log(text);
@@ -74,8 +75,12 @@
             return document.getElementById('subtit' + id.toString());
         }
 
-        // Called when even source receives messages
-        // Format: jump position in seconds 
+        function id_of_sub_element(sub_element)
+        {
+            return parseInt(sub_element.getAttribute("id").substring('subtit'.length));
+        }
+
+        // Called when event source receives messages
         eventSource.onmessage = function(e)
         {
             log('[RECEIVED] ' + e.data);
@@ -91,11 +96,12 @@
             {
                 time = parseFloat(msg.substring(1));
 
-                time_millis = Math.floor(time * 1000);
+                time_millis = Math.round(time * 1000);
 
                 if (subIdsByStart.has(time_millis))
                 {
                     id = subIdsByStart.get(time_millis);
+                    current_sub_id = id;
                     get_sub_element_by_id(id).scrollIntoView();
                 }
             }
@@ -111,7 +117,7 @@
             log('[OPEN] ' + event.data);
         };
 
-        // Called when event source dies. Todo: Show message
+        // Called when event source dies
         eventSource.onerror = (event) =>
         {
             log('[ERROR] ' + event.data);
@@ -122,7 +128,8 @@
             subsList.innerHTML = '<h2>MPV Connection Closed.</h2>';
         };
 
-        window.onbeforeunload = function(){
+        window.onbeforeunload = function()
+        {
             eventSource.close();                
         }
 
@@ -246,7 +253,7 @@
             event.stopPropagation();
 
             var sub_element = container.parentElement.parentElement;
-            var sub_id = parseInt(sub_element.getAttribute("id").substring('subtit'.length));
+            var sub_id = id_of_sub_element(sub_element);
 
             var export_sub_start = sub_id;
             var export_sub_end = sub_id;
@@ -311,7 +318,7 @@
                 return;
 
             var sub_element = container.parentElement;
-            var sub_id = parseInt(sub_element.getAttribute("id").substring('subtit'.length));
+            var sub_id = id_of_sub_element(sub_element);
             
             // Remove highlights
             if (sub_selection_start != null && sub_selection_end != null)
@@ -374,7 +381,8 @@
 
             mpv_control('seek', [sub_start, 'absolute']);
             // mpv sometimes jumps to slightly before the sub so no subtitle update might be fired if paused
-            sub_element.scrollIntoView();                   
+            current_sub_id = id_of_sub_element(sub_element);
+            sub_element.scrollIntoView();
 
             return false;   // don't show context menu
         }
@@ -442,7 +450,53 @@
         .catch(err => {
             throw err; /*alert('Loading subs failed');*/
         });
-                
+
+
+        // Key event handlers
+        function on_key_down(evt)
+        {
+            if (evt.target != document.body)
+                return;
+
+            // Space bar, toggle pause
+            if (evt.keyCode == 32)
+            {
+                mpv_control('cycle', ['pause']);
+                evt.preventDefault();
+            }
+
+            // a/Left arrow key, go to last sub
+            else if (evt.keyCode == 65 || evt.keyCode == 37)
+            {
+                mpv_control('sub-seek', [-1]);
+                evt.preventDefault();
+            }
+
+            // d/Right arrow key, go to next sub
+            else if (evt.keyCode == 68  || evt.keyCode == 39)
+            {
+                mpv_control('sub-seek', [+1]);
+                evt.preventDefault();
+            }
+
+            // s key, go to start of current sub
+            else if (evt.keyCode == 83)
+            {
+                mpv_control('sub-seek', [0]);
+                evt.preventDefault();
+            }
+
+            // w/v key, toggle sub visibility
+            else if (evt.keyCode == 87 || evt.keyCode == 86)
+            {
+                mpv_control('cycle', ['sub-visibility']);
+                evt.preventDefault();
+            }
+
+            // todo: anki/search keys
+        }
+
+        window.addEventListener('keydown', on_key_down);
     </script>
 
 </body>
