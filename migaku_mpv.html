@@ -94,9 +94,7 @@
 
             if (cmd == 's')
             {
-                time = parseFloat(msg.substring(1));
-
-                time_millis = Math.round(time * 1000);
+                time_millis = parseInt(msg.substring(1));
 
                 if (subIdsByStart.has(time_millis))
                 {

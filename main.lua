@@ -136,13 +136,16 @@ local function on_migaku_open()
     -- get current audio track (only supports internal audio)
     local audio_track = get_active_audio_tack()
 
+    -- get sub delay
+    local sub_delay = mp.get_property('sub-delay')
+
     -- get mpv cwd
     local cwd = utils.getcwd()
 
     -- get mpv pid
     local pid = utils.getpid()
 
-    mp.commandv('script-message', '@migaku', 'open', cwd, pid, file_name, audio_track, sub_path)
+    mp.commandv('script-message', '@migaku', 'open', cwd, pid, file_name, audio_track, sub_path, sub_delay)
 end
 
 

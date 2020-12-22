@@ -37,6 +37,7 @@ port = 2222
 media_path = None
 audio_track = None
 subs_json = '[]'
+subs_delay = 0.0
 
 anki_exporter = AnkiExporter()
 
@@ -141,21 +142,24 @@ def stop_get_data_handlers():
 
 def send_subtitle_time(arg):
 
+    time_millis = int(round(float(arg) * 1000)) + subs_delay
+
     data_queues_lock.acquire()
 
     for q in data_queues:
-        q.put('s' + arg)
+        q.put('s' + str(time_millis))
 
     data_queues_lock.release()
 
 
 ### Called when user presses the migaku key in mpv, transmits info about playing environment
 
-# TODO: Splits this
-def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_sub_info):
+# TODO: Split this
+def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_sub_info, mpv_subs_delay):
     global subs_json
     global media_path
     global audio_track
+    global subs_delay
 
     mpv_executable = psutil.Process(int(mpv_pid)).cmdline()[0]
     anki_exporter.mpv_cwd = mpv_cwd
@@ -163,6 +167,9 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
 
     media_path = mpv_media_path
     audio_track = int(mpv_audio_track)
+
+    subs_delay = int(round(float(mpv_subs_delay) * 1000))
+
 
     if mpv_sub_info == '' or mpv_sub_info == None:
         mpv.show_text('Please select a subtitle track.')
@@ -211,7 +218,9 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
     for s in subs:
         text = s.plaintext
         if not skip_empty_subs or text.strip():
-            subs_list.append( { 'text': text, 'start': s.start, 'end': s.end } )
+            sub_start = max(s.start + subs_delay, 0)
+            sub_end = max(s.end + subs_delay, 0)
+            subs_list.append( { 'text': text, 'start': sub_start, 'end': sub_end } )
 
     # some subtitle formats are allowed to be out of order. Whyyy...
     subs_list.sort(key=lambda x: x['start'])
@@ -379,7 +388,7 @@ def main():
                 if cmd == 'sub-start':
                     send_subtitle_time(event_args[2])
                 elif cmd == 'open':
-                    load_and_open_migaku(*event_args[2:6+1])
+                    load_and_open_migaku(*event_args[2:7+1])
 
     # Close server
     server.close()
