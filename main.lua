@@ -95,9 +95,9 @@ local function on_initialize()
         { name = 'subprocess', args = cmd_args, playback_only = false, capture_stderr = true },
         function(res, val, err)
             mp.osd_message('The Migaku plugin shut down.\n\n' ..
-                           'Note that you can only use the Migaku plugin from one mpv instance at a time.\n\n' ..
                            'If you think this is an error please submit a bug report and attach log.txt from the plugin directory.\n\n' ..
-                           'Thank you!',
+                           'Thank you!\n\n' ..
+                           'Also note that you can only use the Migaku plugin from one mpv instance at a time.',
                            15.0)
         end
     )

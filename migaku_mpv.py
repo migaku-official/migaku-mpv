@@ -17,6 +17,7 @@ import pysubs2
 from utils.mpv_ipc import MpvIpc
 from utils.server import HttpServer, HttpResponse
 from utils.ankiexport import AnkiExporter
+import utils.browser_support as browser_support
 
 
 plugin_is_packaged = getattr(sys, 'frozen', False)          # if built with pyinstaller
@@ -338,8 +339,11 @@ def main():
     reuse_last_tab = config.get('reuse_last_tab', 'yes').lower() == 'yes'
 
     browser = config.get('browser', 'default')
-    if browser == 'default':
+    if browser.lower() == 'default':
         browser = None
+    else:
+        browser = browser_support.expand_browser_name(browser)
+    print('BRS:', browser)
     webbrowser_name = browser
 
     browser_downloads_dir = config.get('browser_downloads_directory', '~/Downloads')
@@ -352,11 +356,11 @@ def main():
     else:
         check_path = plugin_dir + '/ffmpeg'
         if os.name == 'nt':
-            check_path = check_path +'.exe'
+            check_path = check_path + '.exe'
         if os.path.isfile(check_path):
             ffmpeg = check_path
         else:
-            ffmpeg = shutil.which('ffmpeg')
+            ffmpeg = shutil.which('ffmpeg')     # Set to none when ffmpeg is not found
 
     skip_empty_subs = config.get('skip_empty_subs', 'yes').lower() == 'yes'
     try:

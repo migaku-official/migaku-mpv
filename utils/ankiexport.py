@@ -25,9 +25,11 @@ class AnkiExporter():
 
         img_name = file_base + '.jpg'
         img_path = self.dl_dir + '/' + img_name
+        img_path = os.path.normpath(img_path)
 
         audio_name = file_base + '.wav'
         audio_path = self.dl_dir + '/' + audio_name
+        audio_path = os.path.normpath(audio_path)
 
         self.make_audio(media_file, audio_track, time_start, time_end, audio_path)
         self.make_snapshot(media_file, time_start, time_end, img_path)
@@ -36,6 +38,8 @@ class AnkiExporter():
 
 
     def make_request(self, data):
+
+        print('ANKI:', data)
 
         request_data = json.dumps(data)
 
