@@ -13,6 +13,8 @@ import traceback
 import platform
 from threading import Lock
 import pysubs2
+import codecs
+import cchardet as chardet
 
 from utils.mpv_ipc import MpvIpc
 from utils.server import HttpServer, HttpResponse
@@ -208,12 +210,48 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
     if not sub_path:    # Should not happen
         return
 
+    # Support drag & drop subtitle files on some systems
+    file_url_protocol = 'file://'
+    if sub_path.startswith(file_url_protocol):
+        sub_path = sub_path[len(file_url_protocol):]
+
     if not os.path.isfile(sub_path):
         mpv.show_text('The subtitle file "%s" was not found.' % sub_path)
         return
 
+    # Determine subs encoding
+    subs_encoding = 'utf-8'
+    
+    try:
+        subs_f = open(sub_path, 'rb')
+        subs_data = subs_f.read()
+        subs_f.close()
+
+        boms_for_enc = [
+            ('utf-32',      (codecs.BOM_UTF32_LE, codecs.BOM_UTF32_BE)),
+            ('utf-16',      (codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)),
+            ('utf-8-sig',   (codecs.BOM_UTF8,)),
+        ]
+
+        for enc, boms in boms_for_enc:
+            if any(subs_data.startswith(bom) for bom in boms):
+                subs_encoding = enc
+                print('SUBS: Detected encoding (bom):', enc)
+                break
+        else:
+            chardet_ret = chardet.detect(subs_data)
+            subs_encoding = chardet_ret['encoding']
+            print('SUBS: Detected encoding (chardet):', chardet_ret)
+    except:
+        print('SUBS: Detecting encoding failed. Defaulting to utf-8')
+
     # Parse subs and generate json for frontend
-    subs = pysubs2.load(sub_path, encoding="utf-8")     # TODO: check if extension is correct and catch exceptions when reading!
+    try:
+        subs = pysubs2.load(sub_path, encoding=subs_encoding)
+    except:
+        mpv.show_text('Loading subtitle file "%s" failed.' % sub_path)
+        return
+
     subs_list = []
 
     for s in subs:
