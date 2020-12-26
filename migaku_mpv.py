@@ -40,7 +40,7 @@ port = 2222
 media_path = None
 audio_track = None
 subs_json = '[]'
-subs_delay = 0.0
+subs_delay = 0
 
 anki_exporter = AnkiExporter()
 
@@ -339,9 +339,11 @@ def main():
         sys.stdout = log_file
         sys.stderr = log_file
 
+    print('ARGS:', sys.argv)
+
     # Check command line args
     if len(sys.argv) != 2 and len(sys.argv) != 3:
-        print('Invalid arguments.\nUsage: %s mpv-ipc-handle [config path]')
+        print('ARGS: Usage: %s mpv-ipc-handle [config path]')
         return
 
     config_path = plugin_dir + '/migaku_mpv.cfg'

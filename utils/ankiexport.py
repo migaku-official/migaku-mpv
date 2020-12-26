@@ -21,6 +21,8 @@ class AnkiExporter():
 
     def export_card(self, media_file, audio_track, text, time_start, time_end, unknowns=[]):
 
+        media_file = os.path.normpath(media_file)
+
         file_base = str(int(round(time.time() * 1000)))
 
         img_name = file_base + '.jpg'

@@ -16,7 +16,7 @@ local function get_ipc_handle()
     local ipc_handle_path = mp.get_property('input-ipc-server')
 
     if ipc_handle_path == '' or ipc_handle_path == nil then
-        local new_ipc_handle_path = mp.get_script_directory() .. '/mpv-ipc-handle'
+        local new_ipc_handle_path = '/tmp/mpv-ipc-handle-' .. os.time()
         mp.set_property('input-ipc-server', new_ipc_handle_path)
         ipc_handle_path = mp.get_property('input-ipc-server')
     end
@@ -84,6 +84,7 @@ local function on_initialize()
     local dev_script_path = mp.get_script_directory() .. "/migaku_mpv.py"
 
     if file_exists(dev_script_path) then
+        mp.msg.info('IPC available: ' .. ipc_handle)
         return  --- in dev mode the script is run manually from a terminal
     end
 
