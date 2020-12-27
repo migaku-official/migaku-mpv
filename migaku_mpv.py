@@ -247,7 +247,8 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
 
     # Parse subs and generate json for frontend
     try:
-        subs = pysubs2.load(sub_path, encoding=subs_encoding)
+        with open(sub_path, encoding=subs_encoding, errors='replace') as fp:
+            subs = pysubs2.SSAFile.from_file(fp)
     except:
         mpv.show_text('Loading subtitle file "%s" failed.' % sub_path)
         return
