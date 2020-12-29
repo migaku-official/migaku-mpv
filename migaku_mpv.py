@@ -51,6 +51,7 @@ config = {}
 webbrowser_name = None
 reuse_last_tab = True
 ffmpeg = 'ffmpeg'
+ffsubsync = 'ffsubsync'
 skip_empty_subs = True
 subtitle_export_timeout = 7.5
 
@@ -190,7 +191,7 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
                     mpv.show_text('Using internal subtitles requires ffmpeg to be located in the plugin directory.')
                     return
                 sub_path = tmp_dir + '/' + str(pathlib.Path(media_path).stem) + '.' + sub_codec
-                args = [ffmpeg, '-y', '-hide_banner', '-loglevel', 'error', '-i', media_path, '-map', '0:' + ffmpeg_track, sub_path]
+                args = [ffmpeg, '-y', '-loglevel', 'error', '-i', media_path, '-map', '0:' + ffmpeg_track, sub_path]
                 try:
                     subprocess.run(args, timeout=subtitle_export_timeout)
                     if not os.path.isfile(sub_path):
@@ -291,6 +292,39 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
     data_queues_lock.release()
 
 
+def resync_subtitle(resync_sub_path, resync_reference_path, resync_reference_track):
+    if ffmpeg is None:
+        mpv.show_text('Subtitle syncing requires ffmpeg to be located in the plugin directory.')
+        return
+
+    mpv.show_text('Syncing subtitles to reference track. Please wait...', duration=150.0)    # Next osd message will close it
+
+    path_ext_split = os.path.splitext(resync_sub_path)  # [path_without_extension, extension_with_dot]
+
+    out_base_path = path_ext_split[0] + '-resynced'     # Out path without index or extension
+    out_path = out_base_path + path_ext_split[1]
+    
+    # If the out path already exists count up until free file is found
+    try_i = 1
+    while os.path.exists(out_path):
+        out_path = out_base_path + '-' + str(try_i) + path_ext_split[1]
+        try_i += 1
+
+    # Run actual syncing in thread
+    def sync_thread_func():
+        r = subprocess.run([ffsubsync, resync_reference_path, '-i', resync_sub_path, '-o', out_path, '--reftrack', resync_reference_track, '--ffmpeg-path', os.path.dirname(ffmpeg)])
+
+        if r.returncode == 0:
+            mpv.command('sub_add', out_path)
+            mpv.show_text('Syncing finished.')
+        else:
+            mpv.show_text('Syncing failed.')
+    
+    t = threading.Thread(target=sync_thread_func)
+    t.start()
+
+
+
 def exception_hook(exc_type, exc_value, exc_traceback):
     print('--------------')
     print('UNHANDLED EXCEPTION OCCURED:\n')
@@ -321,6 +355,37 @@ def exception_hook_threads(args):
     exception_hook(args.exc_type, args.exc_value, args.exc_traceback)
 
 
+
+def find_executable(name):
+
+    # Check if defined in config and exists
+    if name in config:
+        config_exe_path = config.get(name, name)
+        if os.path.isfile(config_exe_path):
+            return config_exe_path
+
+    check_paths = [
+        plugin_dir + '/' + name + '/' + name,
+        plugin_dir + '/' + name,
+    ]
+
+    # On Windows also check for .exe files
+    if platform.system() == 'Windows':
+        for cp in check_paths.copy():
+            check_paths.append(cp + '.exe')
+
+    # On Mac also check for .app files
+    elif platform.system() == 'Darwin':
+        for cp in check_paths.copy():
+            check_paths.append(cp + '.app')
+
+    for cp in check_paths:
+        if os.path.isfile(cp):
+            return cp
+    
+    return shutil.which(name)   # Set to none when not found
+
+
 def main():
     global log_file
     global mpv
@@ -329,6 +394,7 @@ def main():
     global reuse_last_tab
     global webbrowser_name
     global ffmpeg
+    global ffsubsync
     global skip_empty_subs
 
     sys.excepthook = exception_hook
@@ -392,16 +458,9 @@ def main():
     browser_downloads_dir = os.path.expanduser(browser_downloads_dir)
     anki_exporter.dl_dir = browser_downloads_dir
 
-    if 'ffmpeg' in config:
-        ffmpeg = config.get('ffmpeg', 'ffmpeg')
-    else:
-        check_path = plugin_dir + '/ffmpeg'
-        if os.name == 'nt':
-            check_path = check_path + '.exe'
-        if os.path.isfile(check_path):
-            ffmpeg = check_path
-        else:
-            ffmpeg = shutil.which('ffmpeg')     # Set to none when ffmpeg is not found
+    ffmpeg = find_executable('ffmpeg')
+    ffsubsync = find_executable('ffsubsync')
+    print('EXES:', { 'ffmpeg': ffmpeg, 'ffsubsync': ffsubsync })
 
     skip_empty_subs = config.get('skip_empty_subs', 'yes').lower() == 'yes'
     try:
@@ -434,6 +493,8 @@ def main():
                     send_subtitle_time(event_args[2])
                 elif cmd == 'open':
                     load_and_open_migaku(*event_args[2:7+1])
+                elif cmd == 'resync':
+                    resync_subtitle(*event_args[2:4+1])
 
     # Close server
     server.close()
