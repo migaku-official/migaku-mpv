@@ -1,8 +1,8 @@
-import os
+import platform
 
 
 # Windows
-if os.name == 'nt':
+if platform.system() == 'Windows':
 
     import winreg
 
@@ -39,6 +39,23 @@ if os.name == 'nt':
         exe_command = exe_path + ' %s &'
 
         return exe_command
+
+
+# MacOS
+elif platform.system() == 'Darwin':
+
+    def expand_browser_name(name):
+        
+        associations = {
+            'chrome':   '/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome %s &',
+        }
+
+        name_lower = name.lower()
+
+        if name_lower in associations:
+            return associations[name_lower]
+
+        return name
 
 
 # Non Windows
