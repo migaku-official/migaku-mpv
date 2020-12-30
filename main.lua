@@ -143,16 +143,32 @@ local function on_initialize()
 
 
     -- launch server
-    local dev_script_path = mp.get_script_directory() .. '/migaku_mpv.py'
 
-    if file_exists(dev_script_path) then
+    local dev_flag_path = mp.get_script_directory() .. '/dev_flag'
+
+    -- Check if dev flag is present. In that case the server is launched manually
+    if file_exists(dev_flag_path) then
         mp.msg.info('IPC available: ' .. ipc_handle)
-        return  --- in dev mode the script is run manually from a terminal
+        return
     end
 
-    mp.msg.info('Starting Migaku mpv server')
-    local script_command = mp.get_script_directory() .. '/migaku_mpv'
-    local cmd_args = { script_command, ipc_handle }
+    local cmd_args = {}
+
+    local script_path = mp.get_script_directory() .. '/migaku_mpv.py'
+
+    -- Run as py script if exists
+    if file_exists(script_path) then
+        mp.msg.info('Starting Migaku mpv server (script)')
+        cmd_args = { 'python', script_path }
+
+    -- Otherwise try binary
+    else
+        mp.msg.info('Starting Migaku mpv server (binary)')
+        local script_command = mp.get_script_directory() .. '/migaku_mpv'
+        cmd_args = { script_command }
+    end
+
+    table.insert(cmd_args, ipc_handle)
     
     mp.command_native_async(
         { name = 'subprocess', args = cmd_args, playback_only = false, capture_stderr = true },
