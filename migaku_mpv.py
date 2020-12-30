@@ -11,7 +11,6 @@ import webbrowser
 import threading
 import traceback
 import platform
-from threading import Lock
 import pysubs2
 import codecs
 import cchardet as chardet
@@ -45,11 +44,14 @@ subs_delay = 0
 anki_exporter = AnkiExporter()
 
 data_queues = []
-data_queues_lock = Lock()
+data_queues_lock = threading.Lock()
+
+last_subs_request = 0
 
 config = {}
 webbrowser_name = None
 reuse_last_tab = True
+reuse_last_tab_timeout = 1.5
 ffmpeg = 'ffmpeg'
 ffsubsync = 'ffsubsync'
 skip_empty_subs = True
@@ -61,6 +63,9 @@ log_file = None
 ### Handlers for GET requests
 
 def get_handler_subs(socket):
+
+    global last_subs_request
+    last_subs_request = time.time()
 
     r = HttpResponse(content=subs_json.encode(), content_type='text/html')
     r.send(socket)
@@ -79,9 +84,8 @@ def get_handler_data(socket):
 
     keep_listening = True
     while keep_listening:
-        data = q.get()              # Todo: Break if socket dies (Periodic check via timeout?)
-                                    #       This breaks reuse_last_tab if load occurs shortly after a tab is closed!
-                                    #       Could also be circumvented by checking if the write after put(r) was ok
+        data = q.get()
+
         if len(data) < 1:
             keep_listening = False
         else:
@@ -154,6 +158,25 @@ def send_subtitle_time(arg):
         q.put('s' + str(time_millis))
 
     data_queues_lock.release()
+
+
+
+def open_webbrowser_new_tab():
+    url = 'http://' + str(host) + ':' + str(port)
+
+    try:
+        webbrowser.get(webbrowser_name).open(url, new=0, autoraise=True)
+    except:
+        mpv.show_text('Warning: Opening the subtitle browser with configured browser failed.\n\nPlease review your config.')
+        webbrowser.open(url, new=0, autoraise=True)
+
+
+def tab_reload_timeout():
+    time.sleep(reuse_last_tab_timeout)
+
+    if last_subs_request < (time.time() - (reuse_last_tab_timeout + 0.25)):
+        print('BRS: Tab timed out.')
+        open_webbrowser_new_tab()
 
 
 ### Called when user presses the migaku key in mpv, transmits info about playing environment
@@ -270,7 +293,7 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
 
 
     # Open or refresh frontend
-    url = 'http://' + str(host) + ':' + str(port)
+    open_new_tab = False
 
     data_queues_lock.acquire()
 
@@ -279,17 +302,18 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
     if reuse_last_tab and len(data_queues) > 0:
         data_queues[-1].put('r')
         finalize_queues = finalize_queues[:-1]
+        t = threading.Thread(target=tab_reload_timeout)
+        t.start()
     else:
-        try:
-            webbrowser.get(webbrowser_name).open(url, new=0, autoraise=True)
-        except:
-            mpv.show_text('Warning: Opening the subtitle browser with configured browser failed.\n\nPlease review your config.')
-            webbrowser.open(url, new=0, autoraise=True)
+        open_new_tab = True
 
     for q in finalize_queues:
         q.put('q')
 
     data_queues_lock.release()
+
+    if open_new_tab:
+        open_webbrowser_new_tab()
 
 
 def resync_subtitle(resync_sub_path, resync_reference_path, resync_reference_track):
@@ -374,11 +398,6 @@ def find_executable(name):
         for cp in check_paths.copy():
             check_paths.append(cp + '.exe')
 
-    # On Mac also check for .app files
-    elif platform.system() == 'Darwin':
-        for cp in check_paths.copy():
-            check_paths.append(cp + '.app')
-
     for cp in check_paths:
         if os.path.isfile(cp):
             return cp
@@ -392,6 +411,7 @@ def main():
     global host
     global port
     global reuse_last_tab
+    global reuse_last_tab_timeout
     global webbrowser_name
     global ffmpeg
     global ffsubsync
@@ -444,6 +464,10 @@ def main():
         port = 2222
 
     reuse_last_tab = config.get('reuse_last_tab', 'yes').lower() == 'yes'
+    try:
+        reuse_last_tab_timeout = float(config.get('reuse_last_tab_timeout', '1.5'))
+    except:
+        reuse_last_tab_timeout = 1.5
 
     browser = config.get('browser', 'default')
     if browser.lower() == 'default':
@@ -466,7 +490,7 @@ def main():
     try:
         subtitle_export_timeout = float(config.get('subtitle_export_timeout', '7.5'))
     except:
-        port = 7.5
+        subtitle_export_timeout = 7.5
 
     # Init mpv IPC
     mpv = MpvIpc(sys.argv[1])
