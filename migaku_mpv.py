@@ -320,6 +320,11 @@ def resync_subtitle(resync_sub_path, resync_reference_path, resync_reference_tra
     if ffmpeg is None:
         mpv.show_text('Subtitle syncing requires ffmpeg to be located in the plugin directory.')
         return
+    
+    # Support drag & drop subtitle files on some systems
+    file_url_protocol = 'file://'
+    if resync_sub_path.startswith(file_url_protocol):
+        resync_sub_path = resync_sub_path[len(file_url_protocol):]
 
     mpv.show_text('Syncing subtitles to reference track. Please wait...', duration=150.0)    # Next osd message will close it
 

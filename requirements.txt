@@ -1,3 +1,4 @@
 psutil
 pysubs2
 cchardet
+ffsubsync

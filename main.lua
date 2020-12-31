@@ -105,6 +105,14 @@ local function get_retime_sync_source_list()
             else
                 desc = 'Subtitle'
             end
+
+            if track_title == nil then
+                track_title = mp.get_property(string.format('track-list/%d/external-filename', i))
+                if track_title == nil then
+                    track_title = 'Unknown Track'
+                end
+            end
+
             desc = desc .. ' Track ' .. track_id .. ': ' .. track_title
 
             if track_lang then
