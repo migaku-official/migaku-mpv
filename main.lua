@@ -36,7 +36,7 @@ local function get_active_subtitle_track_path(only_external)
     local sub_track_path
     local tracks_count = mp.get_property_number('track-list/count')
 
-    for i = 1, tracks_count do
+    for i = 0, (tracks_count - 1) do
         local track_type = mp.get_property(string.format('track-list/%d/type', i))
         local track_selected = mp.get_property(string.format('track-list/%d/selected', i))
 
@@ -58,7 +58,7 @@ end
 local function get_active_audio_tack()
     local tracks_count = mp.get_property_number('track-list/count')
 
-    for i = 1, tracks_count do
+    for i = 0, (tracks_count - 1) do
         local track_type = mp.get_property(string.format('track-list/%d/type', i))
         local track_selected = mp.get_property(string.format('track-list/%d/selected', i))
         local track_id = mp.get_property(string.format('track-list/%d/id', i))
@@ -88,7 +88,7 @@ local function get_retime_sync_source_list()
 
     local ret = {}
 
-    for i = 1, tracks_count do
+    for i = 0, (tracks_count - 1) do
         local track_selected = mp.get_property_native(string.format('track-list/%d/selected', i))
         local track_type = mp.get_property(string.format('track-list/%d/type', i))
         local track_codec = mp.get_property(string.format('track-list/%d/codec', i))
@@ -109,7 +109,7 @@ local function get_retime_sync_source_list()
             if track_title == nil then
                 track_title = mp.get_property(string.format('track-list/%d/external-filename', i))
                 if track_title == nil then
-                    track_title = 'Unknown Track'
+                    track_title = 'No Title'
                 end
             end
 
