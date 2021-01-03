@@ -5,6 +5,7 @@ import shutil
 import queue
 import json
 import subprocess
+import collections
 import psutil
 import pathlib
 import webbrowser
@@ -20,6 +21,8 @@ from utils.server import HttpServer, HttpResponse
 from utils.ankiexport import AnkiExporter
 import utils.browser_support as browser_support
 
+
+dev_mode = os.path.exists('./dev_flag')
 
 plugin_is_packaged = getattr(sys, 'frozen', False)          # if built with pyinstaller
 
@@ -384,6 +387,25 @@ def exception_hook_threads(args):
     exception_hook(args.exc_type, args.exc_value, args.exc_traceback)
 
 
+def install_except_hooks():
+    sys.excepthook = exception_hook
+
+    if hasattr(threading, 'excepthook'):
+        threading.excepthook = exception_hook_threads
+
+    else:
+        run_old = threading.Thread.run
+
+        LegacyExceptHookArgs = collections.namedtuple('LegacyExceptHookArgs', 'exc_type exc_value exc_traceback thread')
+
+        def run_new(*args, **kwargs):
+            try:
+                run_old(*args, **kwargs)
+            except:
+                exception_hook_threads(LegacyExceptHookArgs(*sys.exc_info(), None))
+
+        threading.Thread.run = run_new
+
 
 def find_executable(name):
 
@@ -410,6 +432,7 @@ def find_executable(name):
     return shutil.which(name)   # Set to none when not found
 
 
+
 def main():
     global log_file
     global mpv
@@ -422,11 +445,11 @@ def main():
     global ffsubsync
     global skip_empty_subs
 
-    sys.excepthook = exception_hook
-    threading.excepthook = exception_hook_threads
+    install_except_hooks()
 
     # Redirect stdout/stderr to log file if built for release
-    if plugin_is_packaged:
+    if not dev_mode:
+        print('Redirecting stout and stderr to log.txt...')
         log_file = open(plugin_dir + '/log.txt', 'w', encoding='utf8')
         sys.stdout = log_file
         sys.stderr = log_file
@@ -435,7 +458,7 @@ def main():
 
     # Check command line args
     if len(sys.argv) != 2 and len(sys.argv) != 3:
-        print('ARGS: Usage: %s mpv-ipc-handle [config path]')
+        print('ARGS: Usage: %s mpv-ipc-handle [config path]' % sys.argv[0])
         return
 
     config_path = plugin_dir + '/migaku_mpv.cfg'
