@@ -510,6 +510,25 @@ def main():
     browser_downloads_dir = os.path.expanduser(browser_downloads_dir)
     anki_exporter.dl_dir = browser_downloads_dir
 
+    anki_w = None
+    anki_h = None
+    try:
+        anki_w = int(config.get('anki_image_width', 'auto'))
+    except:
+        pass
+    try:
+        anki_h = int(config.get('anki_image_height', 'auto'))
+    except:
+        pass
+    anki_exporter.image_width = anki_w
+    anki_exporter.image_height = anki_h
+
+    anki_exporter.image_format = config.get('anki_image_format', 'jpg')
+    anki_exporter.audio_format = config.get('anki_audio_format', 'wav')
+
+    print('ANKI:', vars(anki_exporter))
+
+
     ffmpeg = find_executable('ffmpeg')
     ffsubsync = find_executable('ffsubsync')
     print('EXES:', { 'ffmpeg': ffmpeg, 'ffsubsync': ffsubsync })
