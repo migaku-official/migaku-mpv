@@ -162,9 +162,9 @@ class HttpServer():
     def client_handler(self, socket, address):
 
         try:
-            recv_data = socket.recv(1024).decode()
-            header_line_end = recv_data.find('\r')
-            header_line_segs = recv_data[:header_line_end].split()
+            recv_data = socket.recv(1024)
+            header_line_end = recv_data.find(b'\r')
+            header_line_segs = recv_data[:header_line_end].decode().split()
             method = header_line_segs[0]
             uri = header_line_segs[1]
         except:
@@ -189,26 +189,28 @@ class HttpServer():
             if handler:
                 contents = None
 
-                header_end = recv_data.find('\r\n\r\n')
+                header_end = recv_data.find(b'\r\n\r\n')
 
                 if header_end >= 0:
-                    i = recv_data.find('Content-Length:')
+                    i = recv_data.find(b'Content-Length:')
                     if i >= 0 and i < header_end:
-                        j = recv_data.find('\r\n', i)
+                        j = recv_data.find(b'\r\n', i)
                         try:
-                            contents_length = int(recv_data[i+16:j].strip())
+                            contents_length = int(recv_data[i+15:j].decode().strip())
 
                             if contents_length >= 0:
                                 contents = recv_data[header_end+4:]
 
-                            remaining_read_len = contents_length - 1024
+                            remaining_read_len = contents_length - len(contents)
 
                             while remaining_read_len > 0:
-                                contents += socket.recv(1024).decode()
-                                remaining_read_len -= 1024
+                                now_read_try_len = min(1024, remaining_read_len)
+                                now_read = socket.recv(now_read_try_len)
+                                contents += now_read
+                                remaining_read_len -= len(now_read)
                         except:
                             pass
-            
+                            
                 handler(socket, contents)
 
         socket.close()

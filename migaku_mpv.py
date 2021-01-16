@@ -41,6 +41,13 @@ port = 2222
 
 media_path = None
 audio_track = None
+resx = 1920
+resy = 1080
+sub_font_name = 'Noto Sans CJK JP Regular'
+sub_font_size = 55
+sub_bottom_margin = 22
+sub_outline_size = 3
+sub_shadow_offset = 0
 subs_json = '[]'
 subs_delay = 0
 
@@ -57,6 +64,7 @@ reuse_last_tab = True
 reuse_last_tab_timeout = 1.5
 ffmpeg = 'ffmpeg'
 ffsubsync = 'ffsubsync'
+rubysubs = 'rubysubs'
 skip_empty_subs = True
 subtitle_export_timeout = 7.5
 
@@ -114,29 +122,114 @@ def get_handler_data(socket):
 
 def post_handler_anki(socket, data):
 
-    json_data = json.loads(data)
+    r = HttpResponse()
+    r.send(socket)
     
     if audio_track < 0:
         mpv.show_text('Please select an audio track before opening Migaku MPV if you want to export Anki cards.')
+        return
 
-    elif len(json_data) == 4:
-        text = json_data[0]
-        unknowns = json_data[1]
-        start = json_data[2]
-        end = json_data[3]
+    json_data = data.decode()
+
+    cards = json.loads(json_data)
+
+    is_mass_export = len(cards) > 1
+
+    for i, card in enumerate(cards):
+        text = card[0]
+        unknowns = card[1]
+        # ms to seconds
+        start = card[2] / 1000.0
+        end = card[3] / 1000.0
 
         anki_exporter.export_card(media_path, audio_track, text, start, end, unknowns)
 
-    r = HttpResponse()
-    r.send(socket)
+        if is_mass_export:
+            mpv.show_text('%d/%d' % (i+1, len(cards)))
+
+    if is_mass_export:
+        mpv.show_text('Card export finished.')
 
 
 def post_handler_mpv_control(socket, data):
 
-    mpv.send_json_txt(data)
+    mpv.send_json_txt(data.decode())
 
     r = HttpResponse()
     r.send(socket)
+
+
+def post_handler_set_subs(socket, data):
+    global subs_delay
+
+    r = HttpResponse()
+    r.send(socket)
+
+    if data:
+        path = tmp_dir + '/migaku_parsed.ass'
+        json_data = json.loads(data)
+        
+        subs = pysubs2.SSAFile()
+
+        subs.info = {
+            'Title':    'Migaku Parsed',
+            'PlayResX': str(resx),
+            'PlayResY': str(resy),
+            # "ScriptType: v4.00+" automatically added
+        }
+
+        font_name = sub_font_name
+
+        font_size = sub_font_size
+        font_size = int((resy / 720) * font_size)
+
+        bottom_margin = sub_bottom_margin
+        bottom_margin = int((resy / 720) * bottom_margin)
+
+        outline_size = sub_outline_size
+        outline_size = int((resy / 720) * outline_size)
+
+        shadow_offset = sub_shadow_offset
+        shadow_offset = int((resy / 720) * shadow_offset)
+
+        subs.styles = {
+            'Default': pysubs2.SSAStyle(
+                fontname=font_name,
+                fontsize=font_size,
+                primarycolor=pysubs2.Color(255, 255, 255, 0),
+                secondarycolor=pysubs2.Color(255, 0, 0, 0),
+                outlinecolor=pysubs2.Color(0, 0, 0, 0),
+                backcolor=pysubs2.Color(0, 0, 0, 0),
+                bold=False,
+                italic=False,
+                underline=False,
+                strikeout=False,
+                scalex=100,
+                scaley=100,
+                spacing=0,
+                angle=0,
+                borderstyle=1,
+                outline=outline_size,
+                shadow=shadow_offset,
+                alignment=2,
+                marginl=0,
+                marginr=0,
+                marginv=bottom_margin
+            ),
+        }
+
+        for (start, end, text) in json_data['subs']:
+            text = text.replace('\n', '\\N')
+            subs.events.append(pysubs2.SSAEvent(start=start, end=end, text=text))
+
+        subs.save(path)
+
+        subprocess.run([rubysubs, path, path, json_data['parser'], *json_data['parser_args']])
+
+        mpv.command('sub-add', path)
+        mpv.command('set_property', 'sub-delay', 0)
+        subs_delay = 0
+        mpv.command('script-message', '@migakulua', 'remove_inactive_parsed_subs')
 
 
 ### Managing data streams
@@ -153,7 +246,7 @@ def stop_get_data_handlers():
 
 def send_subtitle_time(arg):
 
-    time_millis = int(round(float(arg) * 1000)) + subs_delay
+    time_millis = (int(round(float(arg) * 1000)) + subs_delay) // 10 * 10
 
     data_queues_lock.acquire()
 
@@ -185,11 +278,13 @@ def tab_reload_timeout():
 ### Called when user presses the migaku key in mpv, transmits info about playing environment
 
 # TODO: Split this
-def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_sub_info, mpv_subs_delay):
+def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_sub_info, mpv_subs_delay, mpv_resx, mpv_resy):
     global subs_json
     global media_path
     global audio_track
     global subs_delay
+    global resx
+    global resy
 
     mpv_executable = psutil.Process(int(mpv_pid)).cmdline()[0]
     anki_exporter.mpv_cwd = mpv_cwd
@@ -200,9 +295,16 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
 
     subs_delay = int(round(float(mpv_subs_delay) * 1000))
 
+    resx = int(mpv_resx)
+    resy = int(mpv_resy)
+
 
     if mpv_sub_info == '' or mpv_sub_info == None:
         mpv.show_text('Please select a subtitle track.')
+        return
+
+    if 'migaku_parsed.ass' in mpv_sub_info:
+        mpv.show_text('Please select a subtitle track that was not created by Migaku.')
         return
 
     sub_path = None
@@ -280,17 +382,15 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
         mpv.show_text('Loading subtitle file "%s" failed.' % sub_path)
         return
 
+    subs.sort()
     subs_list = []
 
     for s in subs:
         text = s.plaintext
         if not skip_empty_subs or text.strip():
-            sub_start = max(s.start + subs_delay, 0)
-            sub_end = max(s.end + subs_delay, 0)
+            sub_start = max(s.start + subs_delay, 0) // 10 * 10
+            sub_end = max(s.end + subs_delay, 0) // 10 * 10
             subs_list.append( { 'text': text, 'start': sub_start, 'end': sub_end } )
-
-    # some subtitle formats are allowed to be out of order. Whyyy...
-    subs_list.sort(key=lambda x: x['start'])
 
     subs_json = json.dumps(subs_list)
 
@@ -347,7 +447,7 @@ def resync_subtitle(resync_sub_path, resync_reference_path, resync_reference_tra
         r = subprocess.run([ffsubsync, resync_reference_path, '-i', resync_sub_path, '-o', out_path, '--reftrack', resync_reference_track, '--ffmpeg-path', os.path.dirname(ffmpeg)])
 
         if r.returncode == 0:
-            mpv.command('sub_add', out_path)
+            mpv.command('sub-add', out_path)
             mpv.show_text('Syncing finished.')
         else:
             mpv.show_text('Syncing failed.')
@@ -443,7 +543,13 @@ def main():
     global webbrowser_name
     global ffmpeg
     global ffsubsync
+    global rubysubs
     global skip_empty_subs
+    global sub_font_name
+    global sub_font_size
+    global sub_bottom_margin
+    global sub_outline_size
+    global sub_shadow_offset
 
     install_except_hooks()
 
@@ -531,13 +637,20 @@ def main():
 
     ffmpeg = find_executable('ffmpeg')
     ffsubsync = find_executable('ffsubsync')
-    print('EXES:', { 'ffmpeg': ffmpeg, 'ffsubsync': ffsubsync })
+    rubysubs = find_executable('rubysubs')
+    print('EXES:', { 'ffmpeg': ffmpeg, 'ffsubsync': ffsubsync, 'rubysubs': rubysubs })
 
     skip_empty_subs = config.get('skip_empty_subs', 'yes').lower() == 'yes'
     try:
         subtitle_export_timeout = float(config.get('subtitle_export_timeout', '7.5'))
     except:
         subtitle_export_timeout = 7.5
+
+    sub_font_name = config.get('sub_font_name', 'Noto Sans CJK JP')
+    sub_font_size = int(config.get('sub_font_size', '55'))
+    sub_bottom_margin = int(config.get('sub_bottom_margin', '22'))
+    sub_outline_size = int(config.get('sub_outline_size', '3'))
+    sub_shadow_offset = int(config.get('sub_shadow_offset', '0'))
 
     # Init mpv IPC
     mpv = MpvIpc(sys.argv[1])
@@ -551,6 +664,7 @@ def main():
     server.set_get_handler('/data', get_handler_data)
     server.set_post_handler('/anki', post_handler_anki)
     server.set_post_handler('/mpv_control', post_handler_mpv_control)
+    server.set_post_handler('/set_subs', post_handler_set_subs)
     server.open()
 
     # Main loop, exits when IPC connection closes
@@ -563,7 +677,7 @@ def main():
                 if cmd == 'sub-start':
                     send_subtitle_time(event_args[2])
                 elif cmd == 'open':
-                    load_and_open_migaku(*event_args[2:7+1])
+                    load_and_open_migaku(*event_args[2:9+1])
                 elif cmd == 'resync':
                     resync_subtitle(*event_args[2:4+1])
 

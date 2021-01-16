@@ -167,7 +167,7 @@ local function on_initialize()
     -- Run as py script if exists
     if file_exists(script_path) then
         mp.msg.info('Starting Migaku mpv server (script)')
-        cmd_args = { 'python', script_path }
+        cmd_args = { 'python3', script_path }
 
     -- Otherwise try binary
     else
@@ -207,6 +207,32 @@ local function on_subtitle(property, value)
 end
 
 
+local function remove_parsed_subtitles(only_inactive)
+    local tracks_count = mp.get_property_number('track-list/count')
+
+    for i = (tracks_count - 1), 0, -1 do
+        local track_selected = mp.get_property_native(string.format('track-list/%d/selected', i))
+        local track_type = mp.get_property(string.format('track-list/%d/type', i))
+        if (only_inactive == false or track_selected == false) and track_type == 'sub' then
+            local track_path = mp.get_property(string.format('track-list/%d/external-filename', i))
+            if track_path ~= nil then
+                if string.find(track_path, 'migaku_parsed.ass') then
+                    local track_id = mp.get_property(string.format('track-list/%d/id', i))
+                    mp.commandv('sub-remove', track_id)
+                end
+            end                
+        end
+    end
+end
+
+
+local function on_script_message(cmd, ...)
+    if cmd == 'remove_inactive_parsed_subs' then
+        remove_parsed_subtitles(true)
+    end
+end
+
+
 local function on_migaku_open()
     -- get subtitle path
     local sub_path = get_active_subtitle_track_path()
@@ -226,13 +252,17 @@ local function on_migaku_open()
     -- get sub delay
     local sub_delay = mp.get_property('sub-delay')
 
+    -- get media resolution
+    local resx = mp.get_property('video-params/w')
+    local resy = mp.get_property('video-params/h')
+
     -- get mpv cwd
     local cwd = utils.getcwd()
 
     -- get mpv pid
     local pid = utils.getpid()
 
-    mp.commandv('script-message', '@migaku', 'open', cwd, pid, file_name, audio_track, sub_path, sub_delay)
+    mp.commandv('script-message', '@migaku', 'open', cwd, pid, file_name, audio_track, sub_path, sub_delay, resx, resy)
 end
 
 
@@ -267,6 +297,7 @@ end
 
 
 mp.observe_property('sub-text', 'string', on_subtitle)
+mp.register_script_message('@migakulua', on_script_message)
 mp.add_key_binding('b', 'migaku-open', on_migaku_open)
 mp.add_key_binding('B', 'migaku-resync', on_migaku_resync)
 

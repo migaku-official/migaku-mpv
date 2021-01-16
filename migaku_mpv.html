@@ -21,6 +21,9 @@
 
         #header {
             height: 41px;
+            background-color: #36393f;
+            display: flex;
+            align-items: center;
         }
 
         #subsList {
@@ -29,17 +32,17 @@
         }
 
         #versionInfo {
-            display: table;
-            text-align: center;
-            height: 100%;         
-            margin-right: 15px;
-            float: right;
+            font-size: 14px;
+            padding: 0 15px;
         }
 
-        #versionInfo > span {
-            display: table-cell;
-            vertical-align: middle;
-            font-size: 14px;
+        .flexFloatRight {
+            margin-left: auto;
+        }
+
+        /* Force below Yomichan */
+        .migaku-popup {
+            z-index: 2147483646 !important;
         }
     </style>
 </head>
@@ -48,23 +51,28 @@
 <body>
 
     <div id="header">
-        <div id="versionInfo"><span>v0.1.8 (Beta)</span></div>
+        <div onclick="upadte_mpv_subs()" class="migaku-toolbar-item migaku-toolbar-button header-item flexFloatRight">⟳ MPV Subs</div>
+        <div onclick="anki_mass_export(true)" class="migaku-toolbar-item migaku-toolbar-button header-item">Export 1T</div>
+        <div onclick="anki_mass_export(false)" class="migaku-toolbar-item migaku-toolbar-button header-item">Export All</div>
+        <div id="versionInfo">v0.1.9 (Beta)</div>
     </div>
 
     <div id="subsList">
     </div>
 
     <script>
+        // Globals
         let eventSource = new EventSource('/data');     // Event source that provides updates like current subtitle etc...
         
         let subs = [];                                  // All loaded subs
-        let subIdsByStart = new Map();                  // Sub ids in list keyed by start time for seeking
+        let sub_ids_by_start = new Map();               // Sub ids in list keyed by start time for seeking, rounded to next hundredth of second
 
         let current_sub_id = null;
 
         let sub_selection_start = null;
         let sub_selection_end = null;
 
+        // Utils
         function log(text)
         {
             console.log(text);
@@ -94,11 +102,11 @@
 
             if (cmd == 's')
             {
-                time_millis = parseInt(msg.substring(1));
+                lookup_time = parseInt(msg.substring(1));
 
-                if (subIdsByStart.has(time_millis))
+                if (sub_ids_by_start.has(lookup_time))
                 {
-                    id = subIdsByStart.get(time_millis);
+                    id = sub_ids_by_start.get(lookup_time);
                     current_sub_id = id;
                     get_sub_element_by_id(id).scrollIntoView();
                 }
@@ -141,7 +149,7 @@
         }
 
         // Generate a timestamp from millisecs
-        function time_to_string(millisecs)
+        function time_to_string(millisecs, force_hours=false)
         {
             hours = Math.floor(millisecs / 3600000);
             millisecs %= 3600000;
@@ -150,7 +158,7 @@
             seconds = Math.floor(millisecs / 1000);
 
             ret = '';
-            if (hours > 0)
+            if (hours > 0 || force_hours)
                 ret += hours.toString() + ':';
             ret += int_to_00_string(minutes);
             ret += ':';
@@ -160,12 +168,12 @@
         }
         
         // Sends a request to plugin to export an anki card
-        function request_card_export(text, unknowns, start, end)
+        function request_cards_export(cards)
         {
             var xhr = new XMLHttpRequest();
             xhr.open("POST", "./anki", true);
             xhr.setRequestHeader("Content-type", "text/plain;charset=UTF-8");
-            xhr.send(JSON.stringify([text, unknowns, start, end]));
+            xhr.send(JSON.stringify(cards));
         }
         
         // Searches for a list of words in the migaku dictionary
@@ -202,7 +210,7 @@
             for (i = 0; i < unknown_containers.length; i++)
             {
                 unknown_container = unknown_containers[i];
-                text_data = unknown_container.getAttribute('data-status-word')
+                text_data = unknown_container.getAttribute('data-status-word');
 
                 if (text_data != null)
                 {
@@ -262,11 +270,8 @@
                 export_sub_end = sub_selection_end;
             }
 
-            var start_sub_element = get_sub_element_by_id(export_sub_start);
-            var end_sub_element = get_sub_element_by_id(export_sub_end);
-    
-            var start = parseFloat(start_sub_element.getAttribute("data-start"));
-            var end = parseFloat(end_sub_element.getAttribute("data-end"));
+            var start = subs[export_sub_start].start;
+            var end = subs[export_sub_end].end;
 
             var unknowns = [];
             var texts = [];
@@ -278,20 +283,20 @@
                 unknowns = unknowns.concat(i_unknowns);
             }
 
-            var text = texts.join('<br>');
+            var text = texts.join('\n');
 
             // TODO: Fetch these from the plugin
-            var padding_start = 0.5;
-            var padding_end = 0.5;
+            var padding_start = 500;
+            var padding_end = 500;
 
             start -= padding_start;
             end += padding_end;
 
-            if (start < 0.0)
-                start = 0.0;
+            if (start < 0)
+                start = 0;
             
             clear_selection();
-            request_card_export(text, unknowns, start, end);
+            request_cards_export([[text, unknowns, start, end]]);
         }
 
         function clear_selection()
@@ -307,7 +312,55 @@
             sub_selection_end = null;
         }
 
-        // Wehen time box is left clicked
+        function anki_card_data_for_subid(sub_id)
+        {
+            var sub = subs[sub_id];
+
+            var start = subs[sub_id].start;
+            var end = subs[sub_id].end;
+            var text = sub.text;
+            var unknowns = get_unknowns_container(get_sub_element_by_id(sub_id));
+
+            // TODO: Fetch these from the plugin
+            var padding_start = 500;
+            var padding_end = 500;
+
+            start -= padding_start;
+            end += padding_end;
+
+            if (start < 0)
+                start = 0;
+
+            return [text, unknowns, start, end];
+        }
+
+        function anki_mass_export(one_t_only)
+        {
+            var cards = [];
+
+            for (let i = 0; i < subs.length; i++)
+            {
+                var i_card = anki_card_data_for_subid(i);
+
+                if (!one_t_only || i_card[1].length == 1)
+                    cards.push(i_card);
+            }
+
+            if (cards.length > 0)
+            {
+                var r = confirm(cards.length.toString() + ' cards will be exported. Please note the following:\n\n' +
+                                '"Add Netflix Cards Automatically" must be checked off in the Dictionary Add-on for cards to be appropriately added.\n\n' +
+                                'MPV must remain opened with the same media file until all cards are exported.\n\n' +
+                                'Would you like to proceed?');
+
+                if (r)
+                    request_cards_export(cards);
+            }
+            else
+                alert('No cards to export.');
+        }
+
+        // When time box is left clicked
         function on_time_click(container, event)
         {
             // Only allow left click for selection
@@ -386,11 +439,104 @@
         }
 
 
+
+        // Sends subtitles with syntax to mpv
+        function upadte_mpv_subs()
+        {
+            var lang = document.querySelector('.migaku-toolbar-select-selected').getAttribute('data-value');
+            if (lang !== 'ja')
+            {
+                alert('MPV subtitle styling is only supported for Japanese currently.');
+                return;
+            }
+
+            var sub_texts = [];
+            for (let i = 0; i < subs.length; i++)
+                sub_texts.push(subs[i].text);
+
+            migaku_api_request_syntax(
+                sub_texts,
+                (subs_syntax) =>
+                {
+                    if (subs_syntax.length != sub_texts.length)
+                        return;     // something went very wrong :P
+
+                    var send_subs = [];
+
+                    for (let i = 0; i < subs.length; i++)
+                        send_subs.push([subs[i].start, subs[i].end, subs_syntax[i]]);
+                    
+                    var unknown_underlining = 'no';
+                    if (document.querySelector('.migaku-toolbar-status-on'))
+                        unknown_underlining = 'yes';
+                    var one_t_highlighting = unknown_underlining;
+
+                    var pitch_highlighting = 'no';
+                    if (document.querySelector('.migaku-japanese-highlighting-on'))
+                        pitch_highlighting = 'yes';
+
+                    var mode = document.querySelector('.migaku-japanese-mode-select > .migaku-toolbar-select-selected').getAttribute('data-value');
+
+                    var send_data = JSON.stringify({
+                        parser: 'ja',
+                        parser_args: [mode, pitch_highlighting, unknown_underlining, one_t_highlighting],
+                        subs: send_subs
+                    });
+
+                    var xhr = new XMLHttpRequest();
+                    xhr.open("POST", "./set_subs", true);
+                    xhr.setRequestHeader("Content-type", "text/plain;charset=UTF-8");
+                    xhr.send(send_data);
+                }
+            );
+        }
+
+        var migaku_syntax_requests = {};
+
+        function migaku_api_request_syntax(texts, callback, data=null)
+        {
+            var id = 'MIGAKU_MPV:' + 
+                     new Date().getTime().toString() + '-' +
+                     Math.floor(Math.random() * 1000000).toString();
+            
+            migaku_syntax_requests[id] = [callback, data];
+
+            const event = new CustomEvent('MIGAKU_API_FETCH_SYNTAX', {
+                detail: { data: texts, id: id },
+            });
+
+            document.head.dispatchEvent(event);
+        }
+
+        // Event callback for MIGAKU_API_SYNTAX_DELIVERY
+        function migaku_api_on_syntax_delivery(e)
+        {
+            const id = e.detail.id;
+            if (!id.startsWith('MIGAKU_MPV'))
+                return;
+
+            if (!(id in migaku_syntax_requests))
+                return;
+
+            const [callback, data] = migaku_syntax_requests[id];
+
+            callback(e.detail.syntax, data);
+            
+            delete migaku_syntax_requests[id];
+        }
+
+        document.head.addEventListener(
+            'MIGAKU_API_SYNTAX_DELIVERY',
+            migaku_api_on_syntax_delivery,
+            false
+        );
+
+
         // Sets up the page from a list of subtitles
         function loadSubs(subtitles)
         {
             subs = subtitles;
-            subIdsByStart = new Map();
+            sub_ids_by_start.clear();
 
             var subsList = document.getElementById('subsList');
 
@@ -398,7 +544,7 @@
             {
                 var sub = subtitles[i];
 
-                subIdsByStart.set(sub.start, i);
+                sub_ids_by_start.set(sub.start, i);
                 
                 // Outer subtitle container
                 var subDiv = document.createElement('div');
@@ -417,7 +563,7 @@
                 
                 var textDiv = document.createElement('div');
                 textDiv.className = 'misubtext';
-                textDiv.innerHTML = '<c.japanese>' + htmlText + '</c.japanese>';
+                textDiv.innerHTML = htmlText;
                 subDiv.appendChild(textDiv);
                 
                 // Subtitle timestamp and buttons
