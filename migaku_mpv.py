@@ -165,6 +165,10 @@ def post_handler_set_subs(socket, data):
     r = HttpResponse()
     r.send(socket)
 
+    if rubysubs is None:
+        mpv.show_text('Subtitle styling requires rubysubs to be located in the plugin directory.')
+        return
+
     if data:
         path = tmp_dir + '/migaku_parsed.ass'
         json_data = json.loads(data)

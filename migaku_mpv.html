@@ -44,6 +44,11 @@
         .migaku-popup {
             z-index: 2147483646 !important;
         }
+
+        /* \n acts like <br> */
+        .misubtext {
+            white-space: pre-wrap;
+        }
     </style>
 </head>
 
@@ -73,11 +78,6 @@
         let sub_selection_end = null;
 
         // Utils
-        function log(text)
-        {
-            console.log(text);
-        }
-
         function get_sub_element_by_id(id)
         {
             return document.getElementById('subtit' + id.toString());
@@ -91,7 +91,7 @@
         // Called when event source receives messages
         eventSource.onmessage = function(e)
         {
-            log('[RECEIVED] ' + e.data);
+            console.log('[RECEIVED] ' + e.data);
 
             var msg = e.data;
 
@@ -120,13 +120,13 @@
         // Called when event source is opened
         eventSource.onopen = (event) =>
         {
-            log('[OPEN] ' + event.data);
+            console.log('[OPEN] ' + event.data);
         };
 
         // Called when event source dies
         eventSource.onerror = (event) =>
         {
-            log('[ERROR] ' + event.data);
+            console.log('[ERROR] ' + event.data);
 
             eventSource.close();
 
@@ -177,7 +177,7 @@
         }
         
         // Searches for a list of words in the migaku dictionary
-        function dict_search(words)
+        function request_dict_search(words)
         {
             if (words.length < 1)
                 return;
@@ -240,7 +240,7 @@
                 selection = selction_obj.toString().trim();
                 if (selection.length > 0)
                 {
-                    dict_search([selection]);
+                    request_dict_search([selection]);
                     return;
                 }
             }
@@ -248,7 +248,7 @@
             // Otherwise search for all unknown words in sub container
             var sub_element = container.parentElement.parentElement;
             var unknowns = get_unknowns_container(sub_element);
-            dict_search(unknowns);
+            request_dict_search(unknowns);
         }
 
         // When anki button is pressed
@@ -270,33 +270,10 @@
                 export_sub_end = sub_selection_end;
             }
 
-            var start = subs[export_sub_start].start;
-            var end = subs[export_sub_end].end;
-
-            var unknowns = [];
-            var texts = [];
-
-            for (var i = export_sub_start; i <= export_sub_end; i++)
-            {
-                texts.push(subs[i].text);
-                var i_unknowns = get_unknowns_container(get_sub_element_by_id(i));
-                unknowns = unknowns.concat(i_unknowns);
-            }
-
-            var text = texts.join('\n');
-
-            // TODO: Fetch these from the plugin
-            var padding_start = 500;
-            var padding_end = 500;
-
-            start -= padding_start;
-            end += padding_end;
-
-            if (start < 0)
-                start = 0;
+            var card_data = get_card_data(export_sub_start, export_sub_end);
             
             clear_selection();
-            request_cards_export([[text, unknowns, start, end]]);
+            request_cards_export([card_data]);
         }
 
         function clear_selection()
@@ -312,14 +289,24 @@
             sub_selection_end = null;
         }
 
-        function anki_card_data_for_subid(sub_id)
+        function get_card_data(sub_id_start, sub_id_end=null)
         {
-            var sub = subs[sub_id];
+            if (sub_id_end == null)
+                sub_id_end = sub_id_start;
 
-            var start = subs[sub_id].start;
-            var end = subs[sub_id].end;
-            var text = sub.text;
-            var unknowns = get_unknowns_container(get_sub_element_by_id(sub_id));
+            var start = subs[sub_id_start].start;
+            var end = subs[sub_id_end].end;
+            var texts = [];
+            var unknowns = [];
+
+            for (var sub_id = sub_id_start; sub_id <= sub_id_end; sub_id++)
+            {
+                texts.push(subs[sub_id].text);
+                var sub_unknowns = get_unknowns_container(get_sub_element_by_id(sub_id));
+                unknowns.push(...sub_unknowns);
+            }
+
+            var text = texts.join('\n');
 
             // TODO: Fetch these from the plugin
             var padding_start = 500;
@@ -340,7 +327,7 @@
 
             for (let i = 0; i < subs.length; i++)
             {
-                var i_card = anki_card_data_for_subid(i);
+                var i_card = get_card_data(i);
 
                 if (!one_t_only || i_card[1].length == 1)
                     cards.push(i_card);
@@ -557,9 +544,8 @@
                 
                 // Subtitle text container (left)
                 htmlText = sub.text;                            // TODO: More escaping 'n stuff...
-                htmlText = htmlText.replace('\n', '<br>')
-                htmlText = htmlText.replace('\\n', '<br>')
-                htmlText = htmlText.replace('\\N', '<br>')
+                htmlText = htmlText.replace('\\n', '\n')
+                htmlText = htmlText.replace('\\N', '\n')
                 
                 var textDiv = document.createElement('div');
                 textDiv.className = 'misubtext';
@@ -617,27 +603,52 @@
             }
 
             // d/Right arrow key, go to next sub
-            else if (evt.keyCode == 68  || evt.keyCode == 39)
+            else if (evt.keyCode == 68 || evt.keyCode == 39)
             {
                 mpv_control('sub-seek', [+1]);
                 evt.preventDefault();
             }
 
-            // s key, go to start of current sub
-            else if (evt.keyCode == 83)
+            // s/Down arrow key, go to start of current sub
+            else if (evt.keyCode == 83 || evt.keyCode == 40)
             {
                 mpv_control('sub-seek', [0]);
                 evt.preventDefault();
             }
 
-            // w/v key, toggle sub visibility
-            else if (evt.keyCode == 87 || evt.keyCode == 86)
+            // w/v/Up arrow key, toggle sub visibility
+            else if (evt.keyCode == 87 || evt.keyCode == 86 || evt.keyCode == 38)
             {
                 mpv_control('cycle', ['sub-visibility']);
                 evt.preventDefault();
             }
 
-            // todo: anki/search keys
+            // e key, search current line's unknowns
+            else if (evt.keyCode == 69)
+            {
+                if (current_sub_id != null)
+                {
+                    var current_sub_element = get_sub_element_by_id(current_sub_id);
+                    var unknowns = get_unknowns_container(current_sub_element);
+
+                    if (unknowns.length > 0)
+                        request_dict_search(unknowns);
+                }
+
+                evt.preventDefault();
+            }
+
+            // q key, anki card for current line
+            else if (evt.keyCode == 81)
+            {
+                if (current_sub_id != null)
+                {
+                    var card_data = get_card_data(current_sub_id);
+                    request_cards_export([card_data]);
+                }
+
+                evt.preventDefault();
+            }
         }
 
         window.addEventListener('keydown', on_key_down);
