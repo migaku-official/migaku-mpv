@@ -459,14 +459,19 @@
                     var one_t_highlighting = unknown_underlining;
 
                     var pitch_highlighting = 'no';
+                    var pitch_shapes = 'no';
                     if (document.querySelector('.migaku-japanese-highlighting-on'))
+                    {
                         pitch_highlighting = 'yes';
+                        if (document.querySelector('.migaku-pitch-shapes-toggle-on'))
+                            pitch_shapes = 'yes';
+                    }
 
                     var mode = document.querySelector('.migaku-japanese-mode-select > .migaku-toolbar-select-selected').getAttribute('data-value');
 
                     var send_data = JSON.stringify({
                         parser: 'ja',
-                        parser_args: [mode, pitch_highlighting, unknown_underlining, one_t_highlighting],
+                        parser_args: [mode, pitch_highlighting, pitch_shapes, unknown_underlining, one_t_highlighting],
                         subs: send_subs
                     });
 
