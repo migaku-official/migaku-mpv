@@ -2,6 +2,17 @@ local utils = require('mp.utils')
 local SelectionMenu = require('modules.selectionmenu')
 
 
+SubMode = {
+    Default = 1,
+    Reading = 2,
+    Recall = 3,
+    Hidden = 4,
+}
+
+local sub_mode = SubMode.Default
+local sub_pause_time = nil
+
+
 local function file_exists(name)
     local f = io.open(name, 'r')
     if f ~= nil then
@@ -193,17 +204,60 @@ end
 
 local function on_subtitle(property, value)
     -- ignore subtitle clear callbacks
-    if value == nil then
+    if value == nil or value == "" then
         return
     end
+    
+    -- Pause in reading mode
+    if sub_mode == SubMode.Reading then
+        mp.set_property_native('pause', true)
+    end
 
-    -- fetch and send current subtitle start to script
+    -- Setup time for recall mode
+    if sub_mode  == SubMode.Recall then
+        sub_pause_time = mp.get_property_number('sub-end') + mp.get_property_number('sub-delay')
+    end
+
+    -- Fetch and send current subtitle start to script
     local sub_start = mp.get_property_number('sub-start')
     if sub_start == nil then
         return
     end
 
     mp.commandv('script-message', '@migaku', 'sub-start', sub_start)
+end
+
+
+local function on_time_pos_change(property, value)
+    if value == nil or sub_pause_time == nil then
+        return
+    end
+
+    if sub_mode ~= SubMode.Recall then
+        sub_pause_time = nil
+        return
+    end
+
+    local sub_show_window_start = sub_pause_time - 0.125
+    local pause_window_start = sub_pause_time - 0.075
+    local window_end = sub_pause_time
+    
+    -- Workaround: OSD sometimes isn't properly updated when pausing, so show subs a bit earlier
+    if value > sub_show_window_start and value <= window_end then
+        mp.set_property_native('sub-visibility', true)
+    end
+
+    if value > pause_window_start and value <= window_end then
+        mp.set_property_native('pause', true)
+        sub_pause_time = nil
+    end
+end
+
+
+local function on_pause_change(name, value)
+    if sub_mode == SubMode.Recall then
+        mp.set_property_native('sub-visibility', value)
+    end
 end
 
 
@@ -229,6 +283,24 @@ end
 local function on_script_message(cmd, ...)
     if cmd == 'remove_inactive_parsed_subs' then
         remove_parsed_subtitles(true)
+
+    elseif cmd == 'sub_mode' then
+        mode_str = ...
+        mode_str = mode_str:lower()
+
+        if mode_str == 'reading' then
+            sub_mode = SubMode.Reading
+            mp.set_property_native('sub-visibility', true)
+        elseif mode_str == 'recall' then
+            sub_mode = SubMode.Recall
+            mp.set_property_native('sub-visibility', false)
+        elseif mode_str == 'hidden' then
+            sub_mode = SubMode.Hidden
+            mp.set_property_native('sub-visibility', false)
+        else
+            sub_mode = SubMode.Default
+            mp.set_property_native('sub-visibility', true)
+        end
     end
 end
 
@@ -297,6 +369,8 @@ end
 
 
 mp.observe_property('sub-text', 'string', on_subtitle)
+mp.observe_property('time-pos', 'number', on_time_pos_change)
+mp.observe_property('pause', 'bool', on_pause_change)
 mp.register_script_message('@migakulua', on_script_message)
 mp.add_key_binding('b', 'migaku-open', on_migaku_open)
 mp.add_key_binding('B', 'migaku-resync', on_migaku_resync)

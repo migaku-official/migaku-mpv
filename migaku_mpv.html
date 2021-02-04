@@ -59,7 +59,16 @@
         <div onclick="upadte_mpv_subs()" class="migaku-toolbar-item migaku-toolbar-button header-item flexFloatRight">⟳ MPV Subs</div>
         <div onclick="anki_mass_export(true)" class="migaku-toolbar-item migaku-toolbar-button header-item">Export 1T</div>
         <div onclick="anki_mass_export(false)" class="migaku-toolbar-item migaku-toolbar-button header-item">Export All</div>
-        <div id="versionInfo">v0.1.9 (Beta)</div>
+
+        <!-- Temporary -->
+        <select onchange="on_sub_mode_change(this)" class="migaku-toolbar-item">
+            <option>Default</option>
+            <option>Reading</option>
+            <option>Recall</option>
+            <option>Hidden</option>
+        </select>
+
+        <div id="versionInfo">v0.1.10 (Beta)</div>
     </div>
 
     <div id="subsList">
@@ -426,6 +435,14 @@
         }
 
 
+        // When sub mode is changed
+        function on_sub_mode_change(dropdown_menu)
+        {
+            var sub_mode = dropdown_menu.options[dropdown_menu.selectedIndex].text;
+            sub_mode = sub_mode.toLowerCase();
+            mpv_control('script-message', ['@migakulua', 'sub_mode', sub_mode])
+        }
+
 
         // Sends subtitles with syntax to mpv
         function upadte_mpv_subs()
@@ -600,24 +617,33 @@
                 evt.preventDefault();
             }
 
-            // a/Left arrow key, go to last sub
+            // a/Left arrow key, go to last sub, ctrl: last chapter
             else if (evt.keyCode == 65 || evt.keyCode == 37)
             {
-                mpv_control('sub-seek', [-1]);
+                if (!evt.ctrlKey)
+                    mpv_control('sub-seek', [-1]);
+                else
+                    mpv_control('add', ['chapter', -1]);
                 evt.preventDefault();
             }
 
-            // d/Right arrow key, go to next sub
+            // d/Right arrow key, go to next sub, ctrl: next chapter
             else if (evt.keyCode == 68 || evt.keyCode == 39)
             {
-                mpv_control('sub-seek', [+1]);
+                if (!evt.ctrlKey)
+                    mpv_control('sub-seek', [+1]);
+                else
+                    mpv_control('add', ['chapter', +1]);
                 evt.preventDefault();
             }
 
-            // s/Down arrow key, go to start of current sub
+            // s/Down arrow key, go to start of current sub, ctrl: restart chapter
             else if (evt.keyCode == 83 || evt.keyCode == 40)
             {
-                mpv_control('sub-seek', [0]);
+                if (!evt.ctrlKey)
+                    mpv_control('sub-seek', [0]);
+                else
+                    mpv_control('add', ['chapter', 0]);
                 evt.preventDefault();
             }
 
