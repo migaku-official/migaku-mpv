@@ -10,7 +10,7 @@ class AnkiExporter():
     def __init__(self):
         
         self.mpv_executable = 'mpv'
-        self.mpv_cwd = ''
+        self.mpv_cwd = os.path.expanduser('~')
         
         self.dl_dir = os.path.expanduser('~/Downloads')
 
@@ -25,9 +25,10 @@ class AnkiExporter():
 
 
 
-    def export_card(self, media_file, audio_track, text, time_start, time_end, unknowns=[]):
+    def export_card(self, media_file, audio_track, text, time_start, time_end, unknowns=[], is_bulk=False):
 
-        media_file = os.path.normpath(media_file)
+        if not media_file.startswith('http'):
+            media_file = os.path.normpath(media_file)
 
         file_base = str(int(round(time.time() * 1000)))
 
@@ -42,7 +43,7 @@ class AnkiExporter():
         self.make_audio(media_file, audio_track, time_start, time_end, audio_path)
         self.make_snapshot(media_file, time_start, time_end, img_path)
 
-        self.make_request({ 'card': [[audio_name, img_name], text, unknowns] })
+        self.make_request({ 'card': [[audio_name, img_name], text, unknowns, is_bulk] })
 
 
     def make_request(self, data):

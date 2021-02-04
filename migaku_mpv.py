@@ -15,6 +15,7 @@ import platform
 import pysubs2
 import codecs
 import cchardet as chardet
+import urllib.request
 
 from utils.mpv_ipc import MpvIpc
 from utils.server import HttpServer, HttpResponse
@@ -142,7 +143,7 @@ def post_handler_anki(socket, data):
         start = card[2] / 1000.0
         end = card[3] / 1000.0
 
-        anki_exporter.export_card(media_path, audio_track, text, start, end, unknowns)
+        anki_exporter.export_card(media_path, audio_track, text, start, end, unknowns, is_mass_export)
 
         if is_mass_export:
             mpv.show_text('%d/%d' % (i+1, len(cards)))
@@ -170,7 +171,7 @@ def post_handler_set_subs(socket, data):
         return
 
     if data:
-        path = tmp_dir + '/migaku_parsed.ass'
+        path = tmp_dir + ('/migaku_parsed_%d.ass' % round(time.time() * 1000))
         json_data = json.loads(data)
         
         subs = pysubs2.SSAFile()
@@ -347,6 +348,25 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
     file_url_protocol = 'file://'
     if sub_path.startswith(file_url_protocol):
         sub_path = sub_path[len(file_url_protocol):]
+
+    # Youtube subtitle?
+    if 'codec=webvtt' in sub_path:
+        i = sub_path.rfind('https://www.youtube.com/')
+        if i >= 0:
+            url = sub_path[i:]
+            
+            try:
+                response = urllib.request.urlopen(url)
+
+                tmp_sub_path = tmp_dir + ('/ytsub_%d.vtt' % round(time.time() * 1000))
+                with open(tmp_sub_path, 'wb') as f:
+                    f.write(response.read())
+            
+                sub_path = tmp_sub_path
+            except Exception:
+                mpv.show_text('Downloading YouTube subtitles failed.')
+                return
+
 
     if not os.path.isfile(sub_path):
         mpv.show_text('The subtitle file "%s" was not found.' % sub_path)
