@@ -1,5 +1,5 @@
 import subprocess
-import socket
+import requests
 import time
 import json
 import os
@@ -12,7 +12,7 @@ class AnkiExporter():
         self.mpv_executable = 'mpv'
         self.mpv_cwd = os.path.expanduser('~')
         
-        self.dl_dir = os.path.expanduser('~/Downloads')
+        self.tmp_dir = os.path.abspath('tmp')
 
         self.migaku_dict_host = '127.0.0.1'
         self.migaku_dict_port = 12345
@@ -25,7 +25,7 @@ class AnkiExporter():
 
 
 
-    def export_card(self, media_file, audio_track, text, time_start, time_end, unknowns=[], is_bulk=False):
+    def export_card(self, media_file, audio_track, text, time_start, time_end, unknowns=[], bulk_count=1, bulk_timestamp=time.time()):
 
         if not media_file.startswith('http'):
             media_file = os.path.normpath(media_file)
@@ -33,36 +33,44 @@ class AnkiExporter():
         file_base = str(int(round(time.time() * 1000)))
 
         img_name = file_base + '.' + self.image_format
-        img_path = self.dl_dir + '/' + img_name
+        img_path = self.tmp_dir + '/' + img_name
         img_path = os.path.normpath(img_path)
 
         audio_name = file_base + '.' + self.audio_format
-        audio_path = self.dl_dir + '/' + audio_name
+        audio_path = self.tmp_dir + '/' + audio_name
         audio_path = os.path.normpath(audio_path)
 
         self.make_audio(media_file, audio_track, time_start, time_end, audio_path)
         self.make_snapshot(media_file, time_start, time_end, img_path)
 
-        self.make_request({ 'card': [[audio_name, img_name], text, unknowns, is_bulk] })
+        data = {
+            'version':   (None, 1),
+            'timestamp': (None, round(bulk_timestamp)),
+            'primary':   (None, text),
+            'unknown':   (None, json.dumps(unknowns)),
+            'image':     (img_name, open(img_path,'rb')),
+            'audio':     (audio_name, open(audio_path,'rb')),
+        }
 
-
-    def make_request(self, data):
-
-        print('ANKI:', data)
-
-        request_data = json.dumps(data)
-
-        request = 'GET / HTTP/1.1\r\nContent-Length: %d\r\n\r\n' % len(request_data)
-        request += request_data
+        if bulk_count > 1:
+            data['bulk'] = (None, 'true' if bulk_count > 0 else 'false')
+            data['totalToRecord'] = (None, bulk_count)
 
         try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.connect((self.migaku_dict_host, self.migaku_dict_port))
-            s.send(request.encode())
-            s.close()
-        except:
-            pass
+            r = requests.post(
+                'http://%s:%d/import' % (self.migaku_dict_host, self.migaku_dict_port),
+                files=data
+            )
+        except requests.ConnectionError:
+            return -1
 
+        if r.status_code != 200:
+            return -1
+
+        if b'cancelled' in r.content:
+            return -2
+
+        return 0
         
 
 

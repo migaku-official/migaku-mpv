@@ -68,7 +68,7 @@
             <option>Hidden</option>
         </select>
 
-        <div id="versionInfo">v0.1.10 (Beta)</div>
+        <div id="versionInfo">v0.1.11 (Beta)</div>
     </div>
 
     <div id="subsList">
@@ -191,10 +191,13 @@
             if (words.length < 1)
                 return;
 
+            var frm = new FormData();
+            frm.append("version", 1);
+            frm.append("terms", JSON.stringify(words));
+
             var xhr = new XMLHttpRequest();
-            xhr.open("POST", "http://127.0.0.1:12345", true);
-            xhr.setRequestHeader("Content-type", "text/plain;charset=UTF-8");
-            xhr.send(JSON.stringify({ "dictSearch": words }));
+            xhr.open('POST', 'http://127.0.0.1:12345/search');
+            xhr.send(frm);
         }
         
         // Sends a control command to the plugin
@@ -223,12 +226,17 @@
 
                 if (text_data != null)
                 {
-                    // data-status-word format: wordkanji◴wordkana
-                    text_data_segs = text_data.split("◴");
-                    if (text_data_segs.length == 2)
+                    if (text_data.indexOf('◴') > -1)
                     {
-                        unknowns.push(text_data_segs[0]);
+                        // data-status-word format: wordkanji◴wordkana
+                        text_data_segs = text_data.split('◴');
+                        if (text_data_segs.length == 2)
+                        {
+                            unknowns.push(text_data_segs[0]);
+                        }
                     }
+                    else
+                        unknowns.push(text_data);
                 }
             }
 

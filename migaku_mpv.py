@@ -15,7 +15,7 @@ import platform
 import pysubs2
 import codecs
 import cchardet as chardet
-import urllib.request
+import requests
 
 from utils.mpv_ipc import MpvIpc
 from utils.server import HttpServer, HttpResponse
@@ -136,6 +136,8 @@ def post_handler_anki(socket, data):
 
     is_mass_export = len(cards) > 1
 
+    timestamp = time.time()
+
     for i, card in enumerate(cards):
         text = card[0]
         unknowns = card[1]
@@ -143,10 +145,17 @@ def post_handler_anki(socket, data):
         start = card[2] / 1000.0
         end = card[3] / 1000.0
 
-        anki_exporter.export_card(media_path, audio_track, text, start, end, unknowns, is_mass_export)
+        r = anki_exporter.export_card(media_path, audio_track, text, start, end, unknowns, len(cards), timestamp)
+
+        if r == -1: # Failure
+            mpv.show_text('Exporting card failed.\n\nMake sure Anki is running and that you are using the latest versions of Migaku Dictionary, Migaku Browser Extension and Migaku MPV.', 8.0)
+            return
+        if r == -2: # Cancelled
+            mpv.show_text('Card export cancelled.')
+            return
 
         if is_mass_export:
-            mpv.show_text('%d/%d' % (i+1, len(cards)))
+            mpv.show_text('%d/%d' % (i+1, len(cards)), 10.0)
 
     if is_mass_export:
         mpv.show_text('Card export finished.')
@@ -308,7 +317,7 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
         mpv.show_text('Please select a subtitle track.')
         return
 
-    if 'migaku_parsed.ass' in mpv_sub_info:
+    if 'migaku_parsed' in mpv_sub_info:
         mpv.show_text('Please select a subtitle track that was not created by Migaku.')
         return
 
@@ -356,11 +365,11 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
             url = sub_path[i:]
             
             try:
-                response = urllib.request.urlopen(url)
+                response = requests.get(url)
 
                 tmp_sub_path = tmp_dir + ('/ytsub_%d.vtt' % round(time.time() * 1000))
                 with open(tmp_sub_path, 'wb') as f:
-                    f.write(response.read())
+                    f.write(response.content)
             
                 sub_path = tmp_sub_path
             except Exception:
@@ -420,6 +429,8 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
 
 
     # Open or refresh frontend
+    mpv.show_text('Opening in Browser...', 2.0)
+
     open_new_tab = False
 
     data_queues_lock.acquire()
@@ -595,7 +606,8 @@ def main():
     if len(sys.argv) >= 3:
         config_path = sys.argv[2]
 
-    # Make temp dir
+    # Clear/create temp dir
+    shutil.rmtree(tmp_dir, ignore_errors=True)
     os.makedirs(tmp_dir, exist_ok=True)
 
     # Load config
@@ -634,11 +646,6 @@ def main():
         browser = browser_support.expand_browser_name(browser)
     print('BRS:', browser)
     webbrowser_name = browser
-
-    browser_downloads_dir = config.get('browser_downloads_directory', '~/Downloads')
-    browser_downloads_dir = browser_downloads_dir.replace('%userprofile%', '~')
-    browser_downloads_dir = os.path.expanduser(browser_downloads_dir)
-    anki_exporter.dl_dir = browser_downloads_dir
 
     anki_w = None
     anki_h = None
