@@ -211,7 +211,7 @@
             current_sub_id = id;
             sub_element = get_sub_element_by_id(current_sub_id);
             sub_element.classList.add('micurrent');
-            sub_element.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'center' });
+            sub_element.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'center' });
         }
         
         // Sends a request to plugin to export an anki card
