@@ -32,7 +32,7 @@ if plugin_is_packaged:
 else:
     plugin_dir = os.path.dirname(os.path.abspath(__file__))
 plugin_dir_name = os.path.basename(plugin_dir)
-tmp_dir = plugin_dir + '/tmp'
+tmp_dir = os.path.join(plugin_dir, 'tmp')
 
 
 mpv = None
@@ -153,6 +153,12 @@ def post_handler_anki(socket, data):
         if r == -2: # Cancelled
             mpv.show_text('Card export cancelled.')
             return
+        if r == -3: # Image/Audio exporting failrue
+            mpv.show_text('Exporting image/audio failed.')
+            return
+        if r < 0:
+            mpv.show_text('Unknown export error.')
+            return
 
         if is_mass_export:
             mpv.show_text('%d/%d' % (i+1, len(cards)), 10.0)
@@ -180,7 +186,7 @@ def post_handler_set_subs(socket, data):
         return
 
     if data:
-        path = tmp_dir + ('/migaku_parsed_%d.ass' % round(time.time() * 1000))
+        path = os.path.join(tmp_dir, 'migaku_parsed_%d.ass' % round(time.time() * 1000))
         json_data = json.loads(data)
         
         subs = pysubs2.SSAFile()
@@ -367,7 +373,7 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
             try:
                 response = requests.get(url)
 
-                tmp_sub_path = tmp_dir + ('/ytsub_%d.vtt' % round(time.time() * 1000))
+                tmp_sub_path = os.path.join(tmp_dir, 'ytsub_%d.vtt' % round(time.time() * 1000))
                 with open(tmp_sub_path, 'wb') as f:
                     f.write(response.content)
             
@@ -419,7 +425,7 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
     subs_list = []
 
     for s in subs:
-        text = s.plaintext
+        text = s.plaintext.strip()
         if not skip_empty_subs or text.strip():
             sub_start = max(s.start + subs_delay, 0) // 10 * 10
             sub_end = max(s.end + subs_delay, 0) // 10 * 10
@@ -646,6 +652,8 @@ def main():
         browser = browser_support.expand_browser_name(browser)
     print('BRS:', browser)
     webbrowser_name = browser
+
+    anki_exporter.tmp_dir = tmp_dir
 
     anki_w = None
     anki_h = None

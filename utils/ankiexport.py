@@ -12,7 +12,7 @@ class AnkiExporter():
         self.mpv_executable = 'mpv'
         self.mpv_cwd = os.path.expanduser('~')
         
-        self.tmp_dir = os.path.abspath('tmp')
+        self.tmp_dir = '.'
 
         self.migaku_dict_host = '127.0.0.1'
         self.migaku_dict_port = 12345
@@ -43,13 +43,19 @@ class AnkiExporter():
         self.make_audio(media_file, audio_track, time_start, time_end, audio_path)
         self.make_snapshot(media_file, time_start, time_end, img_path)
 
+        try:
+            img_file = open(img_path,'rb')
+            audio_file = open(audio_path,'rb')
+        except Exception:
+            return -3       # File generation error
+
         data = {
             'version':   (None, 1),
             'timestamp': (None, round(bulk_timestamp)),
             'primary':   (None, text),
             'unknown':   (None, json.dumps(unknowns)),
-            'image':     (img_name, open(img_path,'rb')),
-            'audio':     (audio_name, open(audio_path,'rb')),
+            'image':     (img_name, img_file),
+            'audio':     (audio_name, audio_file),
         }
 
         if bulk_count > 1:
@@ -81,7 +87,10 @@ class AnkiExporter():
                 '--start=' + str(start), '--end=' + str(end),
                 '--o=' + out_path]
 
-        subprocess.run(args, cwd=self.mpv_cwd)
+        print('CARDEXP:', args)
+        r = subprocess.run(args, cwd=self.mpv_cwd)
+        print('CARDEXP:', r)
+        return r
 
 
     def make_snapshot(self, media_file, start, end, out_path):
@@ -107,4 +116,7 @@ class AnkiExporter():
             scale_arg = '--vf-add=scale=w=%d:h=%d:force_original_aspect_ratio=decrease' % (w, h)
             args.append(scale_arg)
 
-        subprocess.run(args, cwd=self.mpv_cwd)
+        print('CARDEXP:', args)
+        r = subprocess.run(args, cwd=self.mpv_cwd)
+        print('CARDEXP:', r)
+        return r

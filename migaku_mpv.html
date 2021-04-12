@@ -49,13 +49,36 @@
         .misubtext {
             white-space: pre-wrap;
         }
+
+        /* Force fixed right column width */
+        .misubtext {
+            width: calc(100% - 140px) !important;
+        }
+
+        .misubtime {
+            width: 140px !important;
+        }
+
+        /* Kill sentence popup TEMPORARY */
+        .migaku-sentence-export-container {
+            display: none !important;
+        }
+
+        .migaku-hovered-sentence {
+            background-color: transparent !important;
+        }
+
+        /* Highlight current sub */
+        .micurrent > div {
+            background-color: #242424 !important;
+        }
     </style>
 </head>
 
 
 <body>
 
-    <div id="header">
+    <div id="header" class="migaku-ignore">
         <div onclick="upadte_mpv_subs()" class="migaku-toolbar-item migaku-toolbar-button header-item flexFloatRight">⟳ MPV Subs</div>
         <div onclick="anki_mass_export(true)" class="migaku-toolbar-item migaku-toolbar-button header-item">Export 1T</div>
         <div onclick="anki_mass_export(false)" class="migaku-toolbar-item migaku-toolbar-button header-item">Export All</div>
@@ -68,7 +91,7 @@
             <option>Hidden</option>
         </select>
 
-        <div id="versionInfo">v0.1.11 (Beta)</div>
+        <div id="versionInfo">v0.2.0 (Beta)</div>
     </div>
 
     <div id="subsList">
@@ -116,8 +139,7 @@
                 if (sub_ids_by_start.has(lookup_time))
                 {
                     id = sub_ids_by_start.get(lookup_time);
-                    current_sub_id = id;
-                    get_sub_element_by_id(id).scrollIntoView();
+                    set_current_sub_id(id);
                 }
             }
             else if (cmd == 'r')
@@ -174,6 +196,22 @@
             ret += int_to_00_string(seconds);
 
             return ret;
+        }
+        
+        // Sets current_sub_id and handles styling/scrolling
+        function set_current_sub_id(id)
+        {
+            if (current_sub_id !== null)
+            {
+                last_sub_element = get_sub_element_by_id(current_sub_id);
+                if (last_sub_element)
+                    last_sub_element.classList.remove('micurrent');
+            }
+
+            current_sub_id = id;
+            sub_element = get_sub_element_by_id(current_sub_id);
+            sub_element.classList.add('micurrent');
+            sub_element.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'center' });
         }
         
         // Sends a request to plugin to export an anki card
@@ -241,6 +279,19 @@
             }
 
             return unknowns;
+        }
+
+        // When subtext box is clicked
+        function on_subtext_click(container, event)
+        {
+            if (event.altKey != true)
+                return;
+
+            var sub_element = container.parentElement;
+            var sub_id = id_of_sub_element(sub_element);
+            var sub_text = subs[sub_id].text;
+            var deepl_url = 'https://www.deepl.com/translator#ja/en/' + encodeURIComponent(sub_text);
+            window.open(deepl_url, '_blank');
         }
 
         // When search button is pressed
@@ -436,8 +487,7 @@
 
             mpv_control('seek', [sub_start, 'absolute']);
             // mpv sometimes jumps to slightly before the sub so no subtitle update might be fired if paused
-            current_sub_id = id_of_sub_element(sub_element);
-            sub_element.scrollIntoView();
+            set_current_sub_id(id_of_sub_element(sub_element));
 
             return false;   // don't show context menu
         }
@@ -455,10 +505,71 @@
         // Sends subtitles with syntax to mpv
         function upadte_mpv_subs()
         {
-            var lang = document.querySelector('.migaku-toolbar-select-selected').getAttribute('data-value');
-            if (lang !== 'ja')
+            var lang = document.querySelector('.main-migaku-language-dropdown-wrapper > .migaku-toolbar-select-selected').getAttribute('data-value');
+            if (lang == 'Disabled')
             {
-                alert('MPV subtitle styling is only supported for Japanese currently.');
+                alert('Please select a language.');
+                return;
+            }
+
+            parser = null;
+            parser_args = [];
+
+            var unknown_underlining = 'no';
+            if (document.querySelector('.migaku-toolbar-status-on'))
+                unknown_underlining = 'yes';
+            var one_t_highlighting = unknown_underlining;
+
+            if (lang == 'ja')
+            {
+                var pitch_highlighting = 'no';
+                var pitch_shapes = 'no';
+                if (document.querySelector('.migaku-japanese-highlighting-on'))
+                {
+                    pitch_highlighting = 'yes';
+                    if (document.querySelector('.migaku-pitch-shapes-toggle-on'))
+                        pitch_shapes = 'yes';
+                }
+
+                var mode = document.querySelector('.migaku-japanese-mode-select > .migaku-toolbar-select-selected').getAttribute('data-value');
+
+                parser = 'ja';
+                parser_args = [mode, pitch_highlighting, pitch_shapes, unknown_underlining, one_t_highlighting];
+            }
+            else if (lang == 'zh')
+            {
+                var mode = document.querySelector('.migaku-mandarin-mode-select > .migaku-toolbar-select-selected').getAttribute('data-value');
+
+                var tone_highlighting = 'no';
+                if (document.querySelector('.migaku-mandarin-highlighting-on'))
+                    tone_highlighting = 'yes';
+
+                parser = 'zh';
+                parser_args = [mode, tone_highlighting, unknown_underlining, one_t_highlighting];
+            }
+            else if (lang == 'zh-hk')
+            {
+                var mode = document.querySelector('.migaku-cantonese-mode-select > .migaku-toolbar-select-selected').getAttribute('data-value');
+
+                var tone_highlighting = 'no';
+                if (document.querySelector('.migaku-cantonese-highlighting-on'))
+                    tone_highlighting = 'yes';
+
+                parser = 'zh_HK';
+                parser_args = [mode, tone_highlighting, unknown_underlining, one_t_highlighting];
+            }
+            else if (['en', 'fr', 'de', 'pt', 'es'].indexOf(lang) >= 0)
+            {
+                var gender_highlighting = 'no';
+                if (document.querySelector('.migaku-european-highlighting-on'))
+                    gender_highlighting = 'yes';
+
+                parser = 'eu';
+                parser_args = [gender_highlighting, unknown_underlining, one_t_highlighting];
+            }
+            else
+            {
+                alert('The language you have selected is not available for MPV subtitle styling.');
                 return;
             }
 
@@ -477,26 +588,10 @@
 
                     for (let i = 0; i < subs.length; i++)
                         send_subs.push([subs[i].start, subs[i].end, subs_syntax[i]]);
-                    
-                    var unknown_underlining = 'no';
-                    if (document.querySelector('.migaku-toolbar-status-on'))
-                        unknown_underlining = 'yes';
-                    var one_t_highlighting = unknown_underlining;
-
-                    var pitch_highlighting = 'no';
-                    var pitch_shapes = 'no';
-                    if (document.querySelector('.migaku-japanese-highlighting-on'))
-                    {
-                        pitch_highlighting = 'yes';
-                        if (document.querySelector('.migaku-pitch-shapes-toggle-on'))
-                            pitch_shapes = 'yes';
-                    }
-
-                    var mode = document.querySelector('.migaku-japanese-mode-select > .migaku-toolbar-select-selected').getAttribute('data-value');
 
                     var send_data = JSON.stringify({
-                        parser: 'ja',
-                        parser_args: [mode, pitch_highlighting, pitch_shapes, unknown_underlining, one_t_highlighting],
+                        parser: parser,
+                        parser_args: parser_args,
                         subs: send_subs
                     });
 
@@ -580,6 +675,7 @@
                 var textDiv = document.createElement('div');
                 textDiv.className = 'misubtext';
                 textDiv.innerHTML = htmlText;
+                textDiv.setAttribute('onclick','on_subtext_click(this, event);');
                 subDiv.appendChild(textDiv);
                 
                 // Subtitle timestamp and buttons

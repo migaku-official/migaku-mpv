@@ -270,7 +270,7 @@ local function remove_parsed_subtitles(only_inactive)
         if (only_inactive == false or track_selected == false) and track_type == 'sub' then
             local track_path = mp.get_property(string.format('track-list/%d/external-filename', i))
             if track_path ~= nil then
-                if string.find(track_path, 'migaku_parsed.ass') then
+                if string.find(track_path, 'migaku_parsed_') then
                     local track_id = mp.get_property(string.format('track-list/%d/id', i))
                     mp.commandv('sub-remove', track_id)
                 end
