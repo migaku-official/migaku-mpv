@@ -244,12 +244,15 @@ def post_handler_set_subs(socket, data):
 
         subs.save(path)
 
-        subprocess.run([rubysubs, path, path, json_data['parser'], *json_data['parser_args']])
+        r = subprocess.run([rubysubs, path, path, json_data['parser'], *json_data['parser_args']])
+        if r.returncode == 0:
+            mpv.command('sub-add', path)
+            mpv.command('set_property', 'sub-delay', 0)
+            subs_delay = 0
+            mpv.command('script-message', '@migakulua', 'remove_inactive_parsed_subs')
+        else:
+            mpv.show_text('Styling subtitles failed.')
 
-        mpv.command('sub-add', path)
-        mpv.command('set_property', 'sub-delay', 0)
-        subs_delay = 0
-        mpv.command('script-message', '@migakulua', 'remove_inactive_parsed_subs')
 
 
 ### Managing data streams
