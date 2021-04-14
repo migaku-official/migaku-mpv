@@ -240,6 +240,7 @@ def post_handler_set_subs(socket, data):
 
         for (start, end, text) in json_data['subs']:
             text = text.replace('\n', '\\N')
+            text = text.replace('&nbsp;', '\u00A0')
             subs.events.append(pysubs2.SSAEvent(start=start, end=end, text=text))
 
         subs.save(path)
@@ -368,25 +369,25 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
         sub_path = sub_path[len(file_url_protocol):]
 
     # Youtube subtitle?
-    if 'codec=webvtt' in sub_path:
-        i = sub_path.rfind('https://www.youtube.com/')
+    if sub_path.startswith('edl://'):
+        i = sub_path.rfind('http')
         if i >= 0:
             url = sub_path[i:]
             
             try:
                 response = requests.get(url)
-
-                tmp_sub_path = os.path.join(tmp_dir, 'ytsub_%d.vtt' % round(time.time() * 1000))
+                tmp_sub_path = os.path.join(tmp_dir, 'websub_%d.vtt' % round(time.time() * 1000))
                 with open(tmp_sub_path, 'wb') as f:
                     f.write(response.content)
             
                 sub_path = tmp_sub_path
             except Exception:
-                mpv.show_text('Downloading YouTube subtitles failed.')
+                mpv.show_text('Downloading web subtitles failed.')
                 return
 
 
     if not os.path.isfile(sub_path):
+        print('SUBS Not found:', sub_path)
         mpv.show_text('The subtitle file "%s" was not found.' % sub_path)
         return
 
