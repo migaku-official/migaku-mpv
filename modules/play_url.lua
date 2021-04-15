@@ -1,26 +1,30 @@
 local utils = require('mp.utils')
 
 
-local bin_fmt = package.cpath:match("%p[\\|/]?%p(%a+)")
 local os_name = nil;
 
-if bin_fmt == 'dll' then
-    os_name = 'windows'
-elseif bin_fmt == 'so' then
-    os_name = 'linux'
-elseif bin_fmt == 'dylib' then
-    os_name = 'macos'
-end
 
--- Adapterd from https://github.com/rossy/mpv-repl/blob/master/repl.lua
+-- OS detection and get_clipboard_text adapterd from https://github.com/rossy/mpv-repl/blob/master/repl.lua
 --
 -- © 2016, James Ross-Gowan
 --
 -- Permission to use, copy, modify, and/or distribute this software for any
 -- purpose with or without fee is hereby granted, provided that the above
 -- copyright notice and this permission notice appear in all copies.
+
+local o = {}
+-- Kind of a dumb way of detecting the platform but whatever
+if mp.get_property_native('options/vo-mmcss-profile', o) ~= o then
+	os_name = 'windows'
+elseif mp.get_property_native('options/cocoa-force-dedicated-gpu', o) ~= o then
+	os_name = 'macos'
+else
+	os_name = 'linux'
+end
+
+
 function get_clipboard_text()
-  if os_name == 'linux' then
+	if os_name == 'linux' then
         local res = utils.subprocess({
 			args = { 'xclip', '-selection', 'clipboard', '-out' },
 			playback_only = false,
