@@ -368,7 +368,8 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
     if sub_path.startswith(file_url_protocol):
         sub_path = sub_path[len(file_url_protocol):]
 
-    # Youtube subtitle?
+    # Web subtitle?
+    is_websub = False
     if sub_path.startswith('edl://'):
         i = sub_path.rfind('http')
         if i >= 0:
@@ -381,6 +382,7 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
                     f.write(response.content)
             
                 sub_path = tmp_sub_path
+                is_websub = True
             except Exception:
                 mpv.show_text('Downloading web subtitles failed.')
                 return
@@ -430,6 +432,11 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
 
     for s in subs:
         text = s.plaintext.strip()
+
+        # Temporary to correct pysubs2 parsing mistakes
+        if is_websub:
+            text = text.split('\n\n')[0]
+
         if not skip_empty_subs or text.strip():
             sub_start = max(s.start + subs_delay, 0) // 10 * 10
             sub_end = max(s.end + subs_delay, 0) // 10 * 10

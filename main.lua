@@ -376,3 +376,6 @@ mp.add_key_binding('b', 'migaku-open', on_migaku_open)
 mp.add_key_binding('B', 'migaku-resync', on_migaku_resync)
 
 on_initialize()
+
+-- Init play_url
+require('modules.play_url')
