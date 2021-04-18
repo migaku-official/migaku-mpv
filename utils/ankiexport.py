@@ -50,7 +50,7 @@ class AnkiExporter():
             return -3       # File generation error
 
         data = {
-            'version':   (None, 1),
+            'version':   (None, 2),
             'timestamp': (None, round(bulk_timestamp)),
             'primary':   (None, text),
             'unknown':   (None, json.dumps(unknowns)),
