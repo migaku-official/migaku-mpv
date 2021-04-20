@@ -1,4 +1,5 @@
 import socket
+import errno
 import threading
 
 
@@ -90,7 +91,11 @@ class HttpServer():
     def __init__(self, host, port):
 
         self.host = host
-        self.port = port
+        if hasattr(port, '__iter__'):
+            self.try_ports = port
+        else:
+            self.try_ports = [port]
+        self.port = None
 
         self.server_socket = None
         self.is_closing = False
@@ -108,7 +113,17 @@ class HttpServer():
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-        self.server_socket.bind((self.host, self.port))
+        for port in self.try_ports:
+            try:
+                self.server_socket.bind((self.host, port))
+                self.port = port
+                break
+            except socket.error as e:
+                # If port is used, try next one
+                if e.errno != errno.EADDRINUSE:
+                    raise socket.error()
+        else:
+            raise OSError(errno.EADDRINUSE, 'No free port found.')
 
         self.server_socket.listen(5)
 

@@ -38,7 +38,7 @@ tmp_dir = os.path.join(plugin_dir, 'tmp')
 mpv = None
 
 host = '127.0.0.1'
-port = 2222
+port = None
 
 media_path = None
 audio_track = None
@@ -309,6 +309,10 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
     global subs_delay
     global resx
     global resy
+
+    if port is None:
+        mpv.show_text('Not ready...')
+        return
 
     mpv_executable = psutil.Process(int(mpv_pid)).cmdline()[0]
     anki_exporter.mpv_cwd = mpv_cwd
@@ -646,9 +650,17 @@ def main():
 
     host = config.get('host', '127.0.0.1')
     try:
-        port = int(config.get('port', '2222'))
+        try_port_min = int(config.get('port', '2222'))
     except:
-        port = 2222
+        try_port_min = 2222
+    try:
+        try_port_max = int(config.get('port_max', '2233'))
+        if try_port_max < try_port_min:
+            try_port_max = try_port_min
+    except:
+        try_port_max = 2233
+    try_ports = range(try_port_min, try_port_max+1)
+    
 
     reuse_last_tab = config.get('reuse_last_tab', 'yes').lower() == 'yes'
     try:
@@ -706,7 +718,7 @@ def main():
     mpv = MpvIpc(sys.argv[1])
 
     # Setup server
-    server = HttpServer(host, port)
+    server = HttpServer(host, try_ports)
     server.set_get_file_server('/', plugin_dir + '/migaku_mpv.html')
     for path in ['/icons/migakufavicon.png', '/icons/anki.png', '/icons/bigsearch.png']:
         server.set_get_file_server(path, plugin_dir + path)
@@ -716,6 +728,8 @@ def main():
     server.set_post_handler('/mpv_control', post_handler_mpv_control)
     server.set_post_handler('/set_subs', post_handler_set_subs)
     server.open()
+
+    port = server.port
 
     # Main loop, exits when IPC connection closes
     for data in mpv.listen():
