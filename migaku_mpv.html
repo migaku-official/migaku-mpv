@@ -72,6 +72,15 @@
         .micurrent > div {
             background-color: #242424 !important;
         }
+
+        #subslist::-webkit-scrollbar {
+            background: #111;
+        }
+
+        #subslist::-webkit-scrollbar-thumb {
+            background: #242424;
+            border-radius: 1ex;
+        }
     </style>
 </head>
 
@@ -669,8 +678,9 @@
                 
                 // Subtitle text container (left)
                 htmlText = sub.text;                            // TODO: More escaping 'n stuff...
-                htmlText = htmlText.replace('\\n', '\n')
-                htmlText = htmlText.replace('\\N', '\n')
+                htmlText = htmlText.replace('\n', '<br>')
+                htmlText = htmlText.replace('\\n', '<br>')
+                htmlText = htmlText.replace('\\N', '<br>')
                 
                 var textDiv = document.createElement('div');
                 textDiv.className = 'misubtext';
