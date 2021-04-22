@@ -16,6 +16,8 @@ import pysubs2
 import codecs
 import cchardet as chardet
 import requests
+import urllib.parse
+import urllib.request
 
 from utils.mpv_ipc import MpvIpc
 from utils.server import HttpServer, HttpResponse
@@ -70,6 +72,15 @@ skip_empty_subs = True
 subtitle_export_timeout = 7.5
 
 log_file = None
+
+
+def path_clean(path):
+
+    if path.startswith('file:'):
+        uri_path = urllib.parse.urlparse(path).path
+        return urllib.request.url2pathname(uri_path)
+    
+    return path
 
 
 ### Handlers for GET requests
@@ -368,9 +379,7 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
         return
 
     # Support drag & drop subtitle files on some systems
-    file_url_protocol = 'file://'
-    if sub_path.startswith(file_url_protocol):
-        sub_path = sub_path[len(file_url_protocol):]
+    sub_path = path_clean(sub_path)
 
     # Web subtitle?
     is_websub = False
@@ -481,9 +490,7 @@ def resync_subtitle(resync_sub_path, resync_reference_path, resync_reference_tra
         return
     
     # Support drag & drop subtitle files on some systems
-    file_url_protocol = 'file://'
-    if resync_sub_path.startswith(file_url_protocol):
-        resync_sub_path = resync_sub_path[len(file_url_protocol):]
+    resync_sub_path = path_clean(resync_sub_path)
 
     mpv.show_text('Syncing subtitles to reference track. Please wait...', duration=150.0)    # Next osd message will close it
 
