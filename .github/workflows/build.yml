@@ -54,6 +54,11 @@ jobs:
         mkdir -p dist/migaku_mpv
         pyinstaller -F --distpath dist/migaku_mpv -n migaku_mpv -i icon.ico migaku_mpv.py
         cp -r icons modules main.lua migaku_mpv.cfg migaku_mpv.html dist/migaku_mpv/
+    - name: Build (rubysubs)
+      shell: bash
+      run: |
+        echo -e "import rubysubs.__main__\nrubysubs.__main__.main()" > build_rubysubs.py
+        pyinstaller -D --workpath build_rubysubs --distpath dist/migaku_mpv -n rubysubs build_rubysubs.py
     - name: Build (ffsubsync)
       shell: bash
       run: |
