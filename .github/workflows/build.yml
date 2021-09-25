@@ -4,8 +4,22 @@ on: [push]
 
 jobs:
   build:
-
-    runs-on: ubuntu-latest
+  
+    strategy:
+        matrix:
+          include:
+            - build-name: 'Windows'
+              python-version: 3.9
+              platform: windows-latest
+              arch: 'x64'
+            - build-name: 'Ubuntu'
+              python-version: 3.9
+              platform: ubuntu-latest
+              arch: 'x64'
+    
+    name: ${{ matrix.build-name }}
+    
+    runs-on: ${{ matrix.build-name }}
 
     steps:
     - name: Checkout repository
@@ -13,8 +27,8 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: 3.9
-        architecture: 'x64'
+        python-version: ${{ matrix.python-version }}
+        architecture: ${{ matrix.arch }}
     - name: Install dependencies
       shell: bash
       run: |
@@ -31,5 +45,5 @@ jobs:
     - name: Upload artifacts
       uses: actions/upload-artifact@v2
       with:
-        name: build-ubuntu-latest-x64
+        name: build-${{ matrix.platform }}-${{ matrix.arch }}
         path: dist/*
