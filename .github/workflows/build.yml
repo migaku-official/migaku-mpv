@@ -42,6 +42,11 @@ jobs:
         mkdir -p dist/migaku_mpv
         pyinstaller -F --distpath dist/migaku_mpv -n migaku_mpv -i icon.ico migaku_mpv.py
         cp -r icons modules main.lua migaku_mpv.cfg migaku_mpv.html dist/migaku_mpv/
+    - name: Build (ffsubsync)
+      shell: bash
+      run: |
+        echo -e "import ffsubsync\nffsubsync.main()" > build_ffsubsync.py
+        pyinstaller -D --workpath build_ffsubsync --distpath dist/migaku_mpv/ffsubsync -n ffsubsync build_ffsubsync.py
     - name: Upload artifacts
       uses: actions/upload-artifact@v2
       with:
