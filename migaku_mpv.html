@@ -7,9 +7,9 @@
     <title>Migaku MPV</title>
 
     <link rel="shortcut icon" type="image/png" href="./icons/migakufavicon.png"/>
-    
+
     <link rel="preconnect" href="https://fonts.gstatic.com">
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP&display=swap" rel="stylesheet"> 
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP&display=swap" rel="stylesheet">
 
     <style>
         body {
@@ -59,15 +59,6 @@
             width: 140px !important;
         }
 
-        /* Kill sentence popup TEMPORARY */
-        .migaku-sentence-export-container {
-            display: none !important;
-        }
-
-        .migaku-hovered-sentence {
-            background-color: transparent !important;
-        }
-
         /* Highlight current sub */
         .micurrent > div {
             background-color: #242424 !important;
@@ -81,6 +72,36 @@
             background: #242424;
             border-radius: 1ex;
         }
+
+        /* Ugly stuff */
+        #migaku-toolbar-export {
+            display: none !important;
+        }
+
+        /* Temp stuff */
+        /*.migaku-one-target .status-unknown {
+            background-color: rgba(226, 71, 32, 0.35) !important;
+        }
+
+        .migaku-one-star .status-unknown {
+            background-color: rgba(237, 101, 21, 0.35) !important;
+        }
+
+        .migaku-two-star .status-unknown {
+            background-color: rgb(246, 129, 6, 0.35) !important;
+        }
+
+        .migaku-three-star .status-unknown {
+            background-color: rgba(252, 157, 0, 0.35) !important;
+        }
+
+        .migaku-four-star .status-unknown {
+            background-color: rgba(255, 184, 0, 0.35) !important;
+        }
+
+        .migaku-five-star .status-unknown {
+            background-color: rgba(255, 211, 20, 0.35) !important;
+        }*/
     </style>
 </head>
 
@@ -100,7 +121,7 @@
             <option>Hidden</option>
         </select>
 
-        <div id="versionInfo">v0.2.3 (Beta)</div>
+        <div id="versionInfo">v0.3.0 (Beta)</div>
     </div>
 
     <div id="subsList">
@@ -511,74 +532,98 @@
         }
 
 
-        // Sends subtitles with syntax to mpv
-        function upadte_mpv_subs()
-        {
-            var lang = document.querySelector('.main-migaku-language-dropdown-wrapper > .migaku-toolbar-select-selected').getAttribute('data-value');
-            if (lang == 'Disabled')
-            {
-                alert('Please select a language.');
+        var lang = 'Disabled';
+        var parser = null;
+        var parser_args = null;
+
+        function grabLangSettings() {
+            var lang_elem = document.getElementById('migaku-toolbar-lsp-selected');
+            var loading_elem = document.getElementById('migaku-toolbar-loading');
+
+            if (!lang_elem || loading_elem)
                 return;
-            }
+
+            lang = lang_elem.dataset.lang;
 
             parser = null;
-            parser_args = [];
+            parser_args = null;
 
-            var unknown_underlining = 'no';
-            if (document.querySelector('.migaku-toolbar-status-on'))
-                unknown_underlining = 'yes';
+            if (lang === 'Disabled')
+                return;
+
+            var unknown_underlining = document.querySelector('input[name="wordStatus"]').nextElementSibling.classList.contains('checked') ? 'yes' : 'no';
             var one_t_highlighting = unknown_underlining;
 
             if (lang == 'ja')
             {
                 var pitch_highlighting = 'no';
                 var pitch_shapes = 'no';
-                if (document.querySelector('.migaku-japanese-highlighting-on'))
+                if (document.querySelector('input[name="highlighting"]').nextElementSibling.classList.contains('checked'))
                 {
                     pitch_highlighting = 'yes';
-                    if (document.querySelector('.migaku-pitch-shapes-toggle-on'))
+                    if (document.querySelector('input[name="pitchShapes"]').nextElementSibling.classList.contains('checked'))
                         pitch_shapes = 'yes';
                 }
 
-                var mode = document.querySelector('.migaku-japanese-mode-select > .migaku-toolbar-select-selected').getAttribute('data-value');
+                var mode = document.querySelector('#migaku-toolbar-po-inner > div:nth-child(4) > div > div.migaku-dropdown-selected-option').innerText.toLowerCase().replace('only ', '');
 
                 parser = 'ja';
-                parser_args = [mode, pitch_highlighting, pitch_shapes, unknown_underlining, one_t_highlighting];
+                parser_args = [mode, pitch_highlighting, pitch_shapes, unknown_underlining, one_t_highlighting, 'yes'];
             }
             else if (lang == 'zh')
             {
-                var mode = document.querySelector('.migaku-mandarin-mode-select > .migaku-toolbar-select-selected').getAttribute('data-value');
+                var mode = document.querySelector('#migaku-toolbar-po-inner > div:nth-child(4) > div > div.migaku-dropdown-selected-option').innerText.toLowerCase().replace(' - ', '');;
 
                 var tone_highlighting = 'no';
-                if (document.querySelector('.migaku-mandarin-highlighting-on'))
+                if (document.querySelector('input[name="highlighting"]').nextElementSibling.classList.contains('checked'))
                     tone_highlighting = 'yes';
 
                 parser = 'zh';
-                parser_args = [mode, tone_highlighting, unknown_underlining, one_t_highlighting];
+                parser_args = [mode, tone_highlighting, unknown_underlining, one_t_highlighting, 'yes'];
             }
             else if (lang == 'zh-hk')
             {
-                var mode = document.querySelector('.migaku-cantonese-mode-select > .migaku-toolbar-select-selected').getAttribute('data-value');
+                var mode = document.querySelector('#migaku-toolbar-po-inner > div:nth-child(4) > div > div.migaku-dropdown-selected-option').innerText.toLowerCase().replace('only ', '');
 
                 var tone_highlighting = 'no';
-                if (document.querySelector('.migaku-cantonese-highlighting-on'))
+                if (document.querySelector('input[name="highlighting"]').nextElementSibling.classList.contains('checked'))
                     tone_highlighting = 'yes';
 
                 parser = 'zh_HK';
-                parser_args = [mode, tone_highlighting, unknown_underlining, one_t_highlighting];
+                parser_args = [mode, tone_highlighting, unknown_underlining, one_t_highlighting, 'yes'];
             }
             else if (['en', 'fr', 'de', 'pt', 'es'].indexOf(lang) >= 0)
             {
                 var gender_highlighting = 'no';
-                if (document.querySelector('.migaku-european-highlighting-on'))
+                var highlighting_elem = document.querySelector('input[name="highlighting"]');
+                if (highlighting_elem && highlighting_elem.nextElementSibling.classList.contains('checked'))
                     gender_highlighting = 'yes';
 
                 parser = 'eu';
-                parser_args = [gender_highlighting, unknown_underlining, one_t_highlighting];
+                parser_args = [gender_highlighting, unknown_underlining, one_t_highlighting, 'yes'];
             }
-            else
+            else if (lang == 'ko')
             {
-                alert('The language you have selected is not available for MPV subtitle styling.');
+                parser = 'ko';
+                parser_args = [unknown_underlining, one_t_highlighting, 'yes'];
+            }
+        }
+
+        // Now this is just a stupid work around... No time to get something non-dumb going though
+        grabLangSettings();
+        setInterval(grabLangSettings, 200);
+
+        // Sends subtitles with syntax to mpv
+        function upadte_mpv_subs()
+        {
+            if (lang == 'Disabled')
+            {
+                alert('Please select a language.');
+                return;
+            }
+
+            if (parser === null || parser_args === null)  {
+                alert('Subtitle styling is not available for the selected language.');
                 return;
             }
 
@@ -793,6 +838,31 @@
                 }
 
                 evt.preventDefault();
+            }
+            
+            // Send other keys to mpv
+            else
+            {
+                var key = String.fromCharCode(evt.keyCode);
+                
+                // This should normally not be required but whatever
+                if (evt.shiftKey)
+                    key = key.toUpperCase();
+                else
+                    key = key.toLowerCase();
+
+                if (evt.ctrlKey)
+                    key = 'Ctrl+' + key;
+
+                // Don't exit when copying text
+                if (key.toLowerCase() === 'ctrl+c')
+                    return;
+
+                // Don't send meta keys converted to random characters
+                if (evt.keyCode == 91 || evt.keyCode == 92)
+                    return;
+                
+                mpv_control('keypress', [key]);
             }
         }
 

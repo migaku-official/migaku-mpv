@@ -1,6 +1,7 @@
 log.txt
 mpv-ipc-handle
 tmp/
+dev_flag
 
 
 ### Python gitignore

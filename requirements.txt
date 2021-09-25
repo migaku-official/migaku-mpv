@@ -2,4 +2,4 @@ psutil
 pysubs2
 cchardet
 ffsubsync
-rubysubs
+rubysubs>=0.1.4
