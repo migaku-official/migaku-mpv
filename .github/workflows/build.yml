@@ -35,6 +35,7 @@ jobs:
         python -m pip install --upgrade pip
         python -m pip install wheel
         python -m pip install PyInstaller
+        python -m pip install webrtcvad-wheels
         python -m pip install -r requirements.txt
     - name: Build
       shell: bash
@@ -46,7 +47,7 @@ jobs:
       shell: bash
       run: |
         echo -e "import ffsubsync\nffsubsync.main()" > build_ffsubsync.py
-        pyinstaller -D --workpath build_ffsubsync --distpath dist/migaku_mpv/ffsubsync -n ffsubsync build_ffsubsync.py
+        pyinstaller -D --workpath build_ffsubsync --distpath dist/migaku_mpv -n ffsubsync build_ffsubsync.py
     - name: Upload artifacts
       uses: actions/upload-artifact@v2
       with:
