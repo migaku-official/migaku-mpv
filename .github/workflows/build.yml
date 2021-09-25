@@ -52,8 +52,21 @@ jobs:
       run: |
         echo -e "import ffsubsync\nffsubsync.main()" > build_ffsubsync.py
         pyinstaller -D --workpath build_ffsubsync --distpath dist/migaku_mpv -n ffsubsync build_ffsubsync.py
-    - name: Upload artifacts
+    - name: Tar (macOS/Linux)
+      if: ${{ runner.os == 'macOS' || runner.os == 'Linux' }}
+      run: |
+        cd dist
+        tar -czvf ../build-${{ matrix.platform }}.tar.gz ./*
+        cd ..
+    - name: Upload artifacts (Windows)
+      if: ${{ runner.os == 'Windows' }}
       uses: actions/upload-artifact@v2
       with:
         name: build-${{ matrix.platform }}-${{ matrix.arch }}
         path: dist/*
+    - name: Upload artifacts (macOS/Linux)
+      if: ${{ runner.os == 'macOS' || runner.os == 'Linux' }}
+      uses: actions/upload-artifact@v2
+      with:
+        name: build-${{ matrix.platform }}-${{ matrix.arch }}
+        path: build-${{ matrix.platform }}.tar.gz
