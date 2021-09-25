@@ -84,7 +84,7 @@ jobs:
       shell: pwsh
       run: |
         mkdir dist_compressed
-        Compress-Archive -Path dist -DestinationPath dist_compressed\migaku-mpv-${{ env.RELEASE_VERSION }}-${{ matrix.build-name }}.zip
+        Compress-Archive -Path dist\migaku_mpv -DestinationPath dist_compressed\migaku-mpv-${{ env.RELEASE_VERSION }}-${{ matrix.build-name }}.zip
     - name: Upload artifacts
       uses: ncipollo/release-action@v1
       with:
