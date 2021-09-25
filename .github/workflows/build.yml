@@ -25,7 +25,7 @@ jobs:
     - name: Build
       shell: bash
       run: |
-        mkdir dist/migaku_mpv
+        mkdir -p dist/migaku_mpv
         pyinstaller -F --distpath dist/migaku_mpv -n migaku_mpv -i icon.ico migaku_mpv.py
         cp -r icons modules main.lua migaku_mpv.cfg migaku_mpv.html dist/migaku_mpv/
     - name: Upload artifacts
