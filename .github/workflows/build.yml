@@ -1,8 +1,12 @@
-name: Build
+name: Build Release
 
-on: [push]
+on: 
+  push:
+    tags:
+    - '*'
 
 jobs:
+
   build:
   
     strategy:
@@ -66,19 +70,21 @@ jobs:
         Expand-Archive ffmpeg.zip -DestinationPath dist\migaku_mpv
     - name: Tar (macOS/Linux)
       if: ${{ runner.os == 'macOS' || runner.os == 'Linux' }}
+      shell: bash
       run: |
+        mkdir dist_compressed
         cd dist
-        tar -czvf ../build-${{ matrix.platform }}.tar.gz ./*
+        tar -czvf ../dist_compressed/migaku-mpv-${{ github.event.release.tag_name }}-${{ matrix.build-name }}.tar.gz ./*
         cd ..
-    - name: Upload artifacts (Windows)
+    - name: Zip (Windows)
       if: ${{ runner.os == 'Windows' }}
-      uses: actions/upload-artifact@v2
+      shell: pwsh
+      run: |
+        mkdir dist_compressed
+        Compress-Archive -Path dist -DestinationPath dist_compressed\migaku-mpv-${{ github.event.release.tag_name }}-${{ matrix.build-name }}.zip
+    - name: Upload artifacts
+      uses: ncipollo/release-action@v1
       with:
-        name: build-${{ matrix.platform }}-${{ matrix.arch }}
-        path: dist/*
-    - name: Upload artifacts (macOS/Linux)
-      if: ${{ runner.os == 'macOS' || runner.os == 'Linux' }}
-      uses: actions/upload-artifact@v2
-      with:
-        name: build-${{ matrix.platform }}-${{ matrix.arch }}
-        path: build-${{ matrix.platform }}.tar.gz
+        artifacts: "dist_compressed/*"
+        allowUpdates: true
+        token: ${{ secrets.GITHUB_TOKEN }}
