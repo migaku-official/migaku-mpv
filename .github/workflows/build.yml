@@ -30,6 +30,9 @@ jobs:
     runs-on: ${{ matrix.platform }}
 
     steps:
+    - name: Set env
+      shell: bash
+      run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
     - name: Checkout repository
       uses: actions/checkout@v2
     - name: Set up Python
@@ -74,14 +77,14 @@ jobs:
       run: |
         mkdir dist_compressed
         cd dist
-        tar -czvf ../dist_compressed/migaku-mpv-${{ github.event.release.tag_name }}-${{ matrix.build-name }}.tar.gz ./*
+        tar -czvf ../dist_compressed/migaku-mpv-${{ env.RELEASE_VERSION }}-${{ matrix.build-name }}.tar.gz ./*
         cd ..
     - name: Zip (Windows)
       if: ${{ runner.os == 'Windows' }}
       shell: pwsh
       run: |
         mkdir dist_compressed
-        Compress-Archive -Path dist -DestinationPath dist_compressed\migaku-mpv-${{ github.event.release.tag_name }}-${{ matrix.build-name }}.zip
+        Compress-Archive -Path dist -DestinationPath dist_compressed\migaku-mpv-${{ env.RELEASE_VERSION }}-${{ matrix.build-name }}.zip
     - name: Upload artifacts
       uses: ncipollo/release-action@v1
       with:
