@@ -52,11 +52,18 @@ jobs:
       run: |
         echo -e "import ffsubsync\nffsubsync.main()" > build_ffsubsync.py
         pyinstaller -D --workpath build_ffsubsync --distpath dist/migaku_mpv -n ffsubsync build_ffsubsync.py
-    - name: Include ffmpeg
+    - name: Include ffmpeg (macOS/Linux)
+      if: ${{ runner.os == 'macOS' || runner.os == 'Linux' }}
       shell: bash
       run: |
         wget -O ffmpeg.zip "http://dicts.migaku.io/ffmpeg/${{ runner.os }}"
         unzip ffmpeg.zip -d dist/migaku_mpv
+    - name: Include ffmpeg (Windows)
+      if: ${{ runner.os == 'Windows' }}
+      shell: pwsh
+      run: |
+        Invoke-WebRequest "http://dicts.migaku.io/ffmpeg/${{ runner.os }}" -OutFile ffmpeg.zip
+        Expand-Archive ffmpeg.zip -DestinationPath dist\migaku_mpv
     - name: Tar (macOS/Linux)
       if: ${{ runner.os == 'macOS' || runner.os == 'Linux' }}
       run: |
