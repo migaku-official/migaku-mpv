@@ -2,6 +2,7 @@ log.txt
 mpv-ipc-handle
 tmp/
 dev_flag
+dist_compressed/
 
 
 ### Python gitignore
