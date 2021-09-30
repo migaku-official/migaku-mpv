@@ -68,8 +68,9 @@ reuse_last_tab_timeout = 1.5
 ffmpeg = 'ffmpeg'
 ffsubsync = 'ffsubsync'
 rubysubs = 'rubysubs'
+mpv_external = None
 skip_empty_subs = True
-subtitle_export_timeout = 7.5
+subtitle_export_timeout = 0
 
 log_file = None
 
@@ -326,8 +327,16 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
         return
 
     mpv_executable = psutil.Process(int(mpv_pid)).cmdline()[0]
-    anki_exporter.mpv_cwd = mpv_cwd
-    anki_exporter.mpv_executable = mpv_executable
+    if os.path.split(mpv_executable)[-1].lower() in ['mpv', 'mpv.exe']:
+        anki_exporter.mpv_cwd = mpv_cwd
+        anki_exporter.mpv_executable = mpv_executable
+    else:
+        print('Using external mpv')
+        if not mpv_external:
+            mpv.show_text('Please set mpv_external in the config file.')
+            return
+        anki_exporter.mpv_cwd = None
+        anki_exporter.mpv_executable = mpv_external
 
     media_path = mpv_media_path
     audio_track = int(mpv_audio_track)
@@ -357,10 +366,12 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
                 if not ffmpeg:
                     mpv.show_text('Using internal subtitles requires ffmpeg to be located in the plugin directory.')
                     return
+                mpv.show_text('Exporting internal subtitle track...', duration=150.0)    # Next osd message will close it
                 sub_path = tmp_dir + '/' + str(pathlib.Path(media_path).stem) + '.' + sub_codec
                 args = [ffmpeg, '-y', '-loglevel', 'error', '-i', media_path, '-map', '0:' + ffmpeg_track, sub_path]
                 try:
-                    subprocess.run(args, timeout=subtitle_export_timeout)
+                    timeout = subtitle_export_timeout if subtitle_export_timeout > 0 else None
+                    subprocess.run(args, timeout=timeout)
                     if not os.path.isfile(sub_path):
                         raise FileNotFoundError
                 except TimeoutError:
@@ -400,6 +411,17 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
                 mpv.show_text('Downloading web subtitles failed.')
                 return
 
+    elif sub_path.startswith('http'):
+        try:            
+            response = requests.get(sub_path)
+            tmp_sub_path = os.path.join(tmp_dir, 'websub_%d' % round(time.time() * 1000))
+            with open(tmp_sub_path, 'wb') as f:
+                f.write(response.content)
+            
+            sub_path = tmp_sub_path
+        except Exception:
+            mpv.show_text('Downloading web subtitles failed.')
+            return
 
     if not os.path.isfile(sub_path):
         print('SUBS Not found:', sub_path)
@@ -488,7 +510,7 @@ def resync_subtitle(resync_sub_path, resync_reference_path, resync_reference_tra
     if ffmpeg is None:
         mpv.show_text('Subtitle syncing requires ffmpeg to be located in the plugin directory.')
         return
-    
+
     # Support drag & drop subtitle files on some systems
     resync_sub_path = path_clean(resync_sub_path)
 
@@ -570,17 +592,20 @@ def install_except_hooks():
         threading.Thread.run = run_new
 
 
-def find_executable(name):
+def find_executable(name, config_name=None):
+
+    if config_name is None:
+        config_name = name
 
     # Check if defined in config and exists
-    if name in config:
-        config_exe_path = config.get(name, name)
+    if config_name in config:
+        config_exe_path = config.get(config_name, config_name)
         if os.path.isfile(config_exe_path):
             return config_exe_path
 
     check_paths = [
-        plugin_dir + '/' + name + '/' + name,
-        plugin_dir + '/' + name,
+        os.path.join(plugin_dir, name, name),
+        os.path.join(plugin_dir, name),
     ]
 
     # On Windows also check for .exe files
@@ -607,12 +632,14 @@ def main():
     global ffmpeg
     global ffsubsync
     global rubysubs
+    global mpv_external
     global skip_empty_subs
     global sub_font_name
     global sub_font_size
     global sub_bottom_margin
     global sub_outline_size
     global sub_shadow_offset
+    global subtitle_export_timeout
 
     install_except_hooks()
 
@@ -707,13 +734,14 @@ def main():
     ffmpeg = find_executable('ffmpeg')
     ffsubsync = find_executable('ffsubsync')
     rubysubs = find_executable('rubysubs')
-    print('EXES:', { 'ffmpeg': ffmpeg, 'ffsubsync': ffsubsync, 'rubysubs': rubysubs })
+    mpv_external = find_executable('mpv', 'mpv_external')
+    print('EXES:', { 'ffmpeg': ffmpeg, 'ffsubsync': ffsubsync, 'rubysubs': rubysubs, 'mpv_external': mpv_external })
 
     skip_empty_subs = config.get('skip_empty_subs', 'yes').lower() == 'yes'
     try:
-        subtitle_export_timeout = float(config.get('subtitle_export_timeout', '7.5'))
+        subtitle_export_timeout = float(config.get('subtitle_export_timeout', '0'))
     except:
-        subtitle_export_timeout = 7.5
+        subtitle_export_timeout = 0
 
     sub_font_name = config.get('sub_font_name', 'Noto Sans CJK JP')
     sub_font_size = int(config.get('sub_font_size', '55'))
