@@ -40,8 +40,10 @@ class AnkiExporter():
         audio_path = self.tmp_dir + '/' + audio_name
         audio_path = os.path.normpath(audio_path)
 
-        self.make_audio(media_file, audio_track, time_start, time_end, audio_path)
-        self.make_snapshot(media_file, time_start, time_end, img_path)
+        audio_proc = self.make_audio(media_file, audio_track, time_start, time_end, audio_path)
+        screenshot_proc = self.make_snapshot(media_file, time_start, time_end, img_path)
+        audio_proc.wait()
+        screenshot_proc.wait()
 
         try:
             img_file = open(img_path,'rb')
@@ -87,10 +89,7 @@ class AnkiExporter():
                 '--start=' + str(start), '--end=' + str(end),
                 '--o=' + out_path]
 
-        print('CARDEXP:', args)
-        r = subprocess.run(args, cwd=self.mpv_cwd)
-        print('CARDEXP:', r)
-        return r
+        return subprocess.Popen(args, cwd=self.mpv_cwd)
 
 
     def make_snapshot(self, media_file, start, end, out_path):
@@ -116,7 +115,4 @@ class AnkiExporter():
             scale_arg = '--vf-add=scale=w=%d:h=%d:force_original_aspect_ratio=decrease' % (w, h)
             args.append(scale_arg)
 
-        print('CARDEXP:', args)
-        r = subprocess.run(args, cwd=self.mpv_cwd)
-        print('CARDEXP:', r)
-        return r
+        return subprocess.Popen(args, cwd=self.mpv_cwd)
