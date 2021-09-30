@@ -7,7 +7,7 @@ on:
 
 jobs:
 
-  build:
+  build-bin:
   
     strategy:
         matrix:
@@ -90,6 +90,36 @@ jobs:
       run: |
         mkdir dist_compressed
         Compress-Archive -Path dist\migaku_mpv -DestinationPath dist_compressed\migaku-mpv-${{ env.RELEASE_VERSION }}-${{ matrix.build-name }}.zip
+    - name: Upload artifacts
+      uses: ncipollo/release-action@v1
+      with:
+        artifacts: "dist_compressed/*"
+        allowUpdates: true
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+
+  build-src:
+    
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Set env
+      shell: bash
+      run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+    - name: Checkout repository
+      uses: actions/checkout@v2
+    - name: Copy files
+      shell: bash
+      run: |
+        mkdir -p dist/migaku_mpv
+        cp -r icons modules utils main.lua migaku_mpv.cfg migaku_mpv.py migaku_mpv.html requirements.txt dist/migaku_mpv/
+    - name: Tar
+      shell: bash
+      run: |
+        mkdir dist_compressed
+        cd dist
+        tar -czvf ../dist_compressed/migaku-mpv-${{ env.RELEASE_VERSION }}-Python.tar.gz ./*
+        cd ..
     - name: Upload artifacts
       uses: ncipollo/release-action@v1
       with:
