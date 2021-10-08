@@ -362,12 +362,16 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
         if len(internal_sub_info) == 2:
             ffmpeg_track = internal_sub_info[0]
             sub_codec = internal_sub_info[1]
-            if sub_codec in ['srt', 'ass']:
+            if sub_codec in ['subrip', 'ass']:
                 if not ffmpeg:
                     mpv.show_text('Using internal subtitles requires ffmpeg to be located in the plugin directory.')
                     return
                 mpv.show_text('Exporting internal subtitle track...', duration=150.0)    # Next osd message will close it
-                sub_path = tmp_dir + '/' + str(pathlib.Path(media_path).stem) + '.' + sub_codec
+                if sub_codec == 'subrip':
+                    sub_extension = 'srt'
+                else:
+                    sub_extension = sub_codec
+                sub_path = tmp_dir + '/' + str(pathlib.Path(media_path).stem) + '.' + sub_extension
                 args = [ffmpeg, '-y', '-loglevel', 'error', '-i', media_path, '-map', '0:' + ffmpeg_track, sub_path]
                 try:
                     timeout = subtitle_export_timeout if subtitle_export_timeout > 0 else None
@@ -381,7 +385,7 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
                     mpv.show_text('Exporting internal subtitle track failed.')
                     return
             else:
-                mpv.show_text('Selected internal subtitle track is not supported.\n\nOnly SRT and ASS tracks are supported.')
+                mpv.show_text('Selected internal subtitle track is not supported.\n\nOnly SRT and ASS tracks are supported.\n\nSelected track is ' + sub_codec)
                 return
     else:
         sub_path = mpv_sub_info
