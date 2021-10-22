@@ -2,6 +2,68 @@ local utils = require('mp.utils')
 local SelectionMenu = require('modules.selectionmenu')
 
 
+function trim(s)
+    return s:gsub('^%s*(.-)%s*$', '%1')
+end
+
+function read_config(path, default)
+    local ret = {}
+
+    if default then
+        for key, value in pairs(default) do
+            ret[key] = value
+        end        
+    end        
+
+    local file = io.open(path, 'r')
+
+    if file then
+        for line in file:lines() do
+            line = trim(line)
+            if line:find('^#') == nil then
+                local i = line:find('=')
+                if i ~= nil and i > 0 then
+                    local key = trim(line:sub(0, i-1))
+                    local value = trim(line:sub(i+1))
+                    ret[key] = value
+                end
+            end
+        end
+
+        file:close()
+    end
+
+    return ret
+end
+
+function save_config(path, data)
+    local file = io.open(path, 'w')
+
+    if file then
+        for key, value in pairs(data) do
+            file:write(key .. '=' .. value)
+            file:write('\n')
+        end
+        
+        file:close()
+    end
+end
+
+local default_config = {
+    secondary_sub_area=0.25,
+    secondary_sub_lang=''
+}
+
+local config = read_config(mp.get_script_directory() .. '/migaku_mpv.cfg', default_config)
+
+local secondary_sub_area = tonumber(config['secondary_sub_area'])
+
+local secondary_sub_langs = {}
+for lang in config['secondary_sub_lang']:gmatch('([^,(?! )]+)') do
+    table.insert(secondary_sub_langs, lang)
+end
+
+
 SubMode = {
     Default = 1,
     Reading = 2,
@@ -41,7 +103,8 @@ local function get_ipc_handle()
 end
 
 
-local function get_active_subtitle_track_path(only_external)
+local function get_active_subtitle_track_path(secondary, only_external)
+    track_selected_val = secondary and '1' or '0'
     only_external = only_external == true
 
     local sub_track_path
@@ -50,8 +113,9 @@ local function get_active_subtitle_track_path(only_external)
     for i = 0, (tracks_count - 1) do
         local track_type = mp.get_property(string.format('track-list/%d/type', i))
         local track_selected = mp.get_property(string.format('track-list/%d/selected', i))
+        local track_selected_main = mp.get_property(string.format('track-list/%d/main-selection', i))
 
-        if track_type == 'sub' and track_selected == 'yes' then
+        if track_type == 'sub' and track_selected == 'yes' and track_selected_main == track_selected_val then
             sub_track_path = mp.get_property(string.format('track-list/%d/external-filename', i))
             if sub_track_path == nil and not(only_external) then
                 local track_ff_index = mp.get_property(string.format('track-list/%d/ff-index', i))
@@ -307,7 +371,7 @@ end
 
 local function on_migaku_open()
     -- get subtitle path
-    local sub_path = get_active_subtitle_track_path()
+    local sub_path = get_active_subtitle_track_path(false)
     if sub_path == nil then
         sub_path = ''
     end
@@ -347,7 +411,7 @@ end
 resync_menu.on_confirm = on_resync_menu_confirm
 
 local function on_migaku_resync()
-    local external_sub = get_active_subtitle_track_path(true)
+    local external_sub = get_active_subtitle_track_path(false, true)
 
     if external_sub == nil then
         mp.osd_message('Select an external subtitle you want to resync.')
@@ -367,10 +431,62 @@ local function on_migaku_resync()
 end
 
 
+local function on_mouse_move(name, value)
+    local secondary_subs_enabled = value['hover']
+
+    if secondary_subs_enabled then
+        local y = value['y']
+        local h = mp.get_property_native('osd-dimensions/h')
+
+        local pos = y/h;
+
+        secondary_subs_enabled = pos < secondary_sub_area
+    end
+
+    mp.set_property_native('secondary-sub-visibility', secondary_subs_enabled)
+end
+
+
+local function get_auto_secondary_sid()
+    local tracks_count = mp.get_property_number('track-list/count')
+
+    for _, lang in pairs(secondary_sub_langs) do
+        -- first try external, then internal sub tracks
+        for check_internal = 0, 1 do
+            for i = 0, (tracks_count - 1) do
+                local track_type = mp.get_property(string.format('track-list/%d/type', i))
+                if track_type == 'sub' then
+                    sub_track_path = mp.get_property(string.format('track-list/%d/external-filename', i))
+                    if (sub_track_path == nil) == (check_internal == 1) then
+                        local track_id = mp.get_property(string.format('track-list/%d/id', i))
+                        local track_lang = mp.get_property(string.format('track-list/%d/lang', i))
+                        if track_lang == lang then
+                            return track_id
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return nil
+end
+
+
+local function on_loaded()
+    local secondary_sid = get_auto_secondary_sid()
+    if secondary_sid ~= nil then
+        mp.set_property('secondary-sid', secondary_sid)
+    end
+end
+
+
 
 mp.observe_property('sub-text', 'string', on_subtitle)
 mp.observe_property('time-pos', 'number', on_time_pos_change)
 mp.observe_property('pause', 'bool', on_pause_change)
+mp.observe_property('mouse-pos', 'native', on_mouse_move)
+mp.register_event('file-loaded', on_loaded)
 mp.register_script_message('@migakulua', on_script_message)
 mp.add_key_binding('b', 'migaku-open', on_migaku_open)
 mp.add_key_binding('B', 'migaku-resync', on_migaku_resync)
