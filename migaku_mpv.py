@@ -52,6 +52,7 @@ sub_bottom_margin = 22
 sub_outline_size = 3
 sub_shadow_offset = 0
 subs_json = '[]'
+secondary_subs_json = '[]'
 subs_delay = 0
 
 anki_exporter = AnkiExporter()
@@ -92,6 +93,15 @@ def get_handler_subs(socket):
     last_subs_request = time.time()
 
     r = HttpResponse(content=subs_json.encode(), content_type='text/html')
+    r.send(socket)
+
+
+def get_handler_secondary_subs(socket):
+
+    global last_subs_request
+    last_subs_request = time.time()
+
+    r = HttpResponse(content=secondary_subs_json.encode(), content_type='text/html')
     r.send(socket)
 
 
@@ -151,13 +161,14 @@ def post_handler_anki(socket, data):
     timestamp = time.time()
 
     for i, card in enumerate(cards):
-        text = card[0]
-        unknowns = card[1]
+        text = card['text']
+        translation_text = card['translation_text']
+        unknowns = card['unknowns']
         # ms to seconds
-        start = card[2] / 1000.0
-        end = card[3] / 1000.0
+        start = card['start'] / 1000.0
+        end = card['end'] / 1000.0
 
-        r = anki_exporter.export_card(media_path, audio_track, text, start, end, unknowns, len(cards), timestamp)
+        r = anki_exporter.export_card(media_path, audio_track, text, translation_text, start, end, unknowns, len(cards), timestamp)
 
         if r == -1: # Failure
             mpv.show_text('Exporting card failed.\n\nMake sure Anki is running and that you are using the latest versions of Migaku Dictionary, Migaku Browser Extension and Migaku MPV.', 8.0)
@@ -311,11 +322,139 @@ def tab_reload_timeout():
         open_webbrowser_new_tab()
 
 
+
+class SubtitleLoadError(Exception):
+    pass
+
+
+def load_subs_from_info(sub_info):
+        sub_path = None
+
+        if '*' in sub_info:
+            internal_sub_info = sub_info.split('*')
+            if len(internal_sub_info) == 2:
+                ffmpeg_track = internal_sub_info[0]
+                sub_codec = internal_sub_info[1]
+                if sub_codec in ['subrip', 'ass']:
+                    if not ffmpeg:
+                        raise SubtitleLoadError('Using internal subtitles requires ffmpeg to be located in the plugin directory.')
+                    mpv.show_text('Exporting internal subtitle track...', duration=150.0)    # Next osd message will close it
+                    if sub_codec == 'subrip':
+                        sub_extension = 'srt'
+                    else:
+                        sub_extension = sub_codec
+                    sub_path = tmp_dir + '/' + str(pathlib.Path(media_path).stem) + '.' + sub_extension
+                    args = [ffmpeg, '-y', '-loglevel', 'error', '-i', media_path, '-map', '0:' + ffmpeg_track, sub_path]
+                    try:
+                        timeout = subtitle_export_timeout if subtitle_export_timeout > 0 else None
+                        subprocess.run(args, timeout=timeout)
+                        if not os.path.isfile(sub_path):
+                            raise FileNotFoundError
+                    except TimeoutError:
+                        raise SubtitleLoadError('Exporting internal subtitle track timed out.')
+                    except:
+                        raise SubtitleLoadError('Exporting internal subtitle track failed.')
+                else:
+                    raise SubtitleLoadError('Selected internal subtitle track is not supported.\n\nOnly SRT and ASS tracks are supported.\n\nSelected track is ' + sub_codec)
+        else:
+            sub_path = sub_info
+
+        if not sub_path:    # Should not happen
+            raise SubtitleLoadError('Unkown error occured.')
+
+        # Support drag & drop subtitle files on some systems
+        sub_path = path_clean(sub_path)
+
+        # Web subtitle?
+        is_websub = False
+        if sub_path.startswith('edl://'):
+            i = sub_path.rfind('http')
+            if i >= 0:
+                url = sub_path[i:]
+                
+                try:
+                    response = requests.get(url)
+                    tmp_sub_path = os.path.join(tmp_dir, 'websub_%d.vtt' % round(time.time() * 1000))
+                    with open(tmp_sub_path, 'wb') as f:
+                        f.write(response.content)
+                
+                    sub_path = tmp_sub_path
+                    is_websub = True
+                except Exception:
+                    raise SubtitleLoadError('Downloading web subtitles failed.')
+
+        elif sub_path.startswith('http'):
+            try:            
+                response = requests.get(sub_path)
+                tmp_sub_path = os.path.join(tmp_dir, 'websub_%d' % round(time.time() * 1000))
+                with open(tmp_sub_path, 'wb') as f:
+                    f.write(response.content)
+                
+                sub_path = tmp_sub_path
+            except Exception:
+                raise SubtitleLoadError('Downloading web subtitles failed.')
+
+        if not os.path.isfile(sub_path):
+            print('SUBS Not found:', sub_path)
+            raise SubtitleLoadError('The subtitle file "%s" was not found.' % sub_path)
+
+        # Determine subs encoding
+        subs_encoding = 'utf-8'
+        
+        try:
+            subs_f = open(sub_path, 'rb')
+            subs_data = subs_f.read()
+            subs_f.close()
+
+            boms_for_enc = [
+                ('utf-32',      (codecs.BOM_UTF32_LE, codecs.BOM_UTF32_BE)),
+                ('utf-16',      (codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)),
+                ('utf-8-sig',   (codecs.BOM_UTF8,)),
+            ]
+
+            for enc, boms in boms_for_enc:
+                if any(subs_data.startswith(bom) for bom in boms):
+                    subs_encoding = enc
+                    print('SUBS: Detected encoding (bom):', enc)
+                    break
+            else:
+                chardet_ret = chardet.detect(subs_data)
+                subs_encoding = chardet_ret['encoding']
+                print('SUBS: Detected encoding (chardet):', chardet_ret)
+        except:
+            print('SUBS: Detecting encoding failed. Defaulting to utf-8')
+
+        # Parse subs and generate json for frontend
+        try:
+            with open(sub_path, encoding=subs_encoding, errors='replace') as fp:
+                subs = pysubs2.SSAFile.from_file(fp)
+        except:
+            raise SubtitleLoadError('Loading subtitle file "%s" failed.' % sub_path)
+
+        subs.sort()
+        subs_list = []
+
+        for s in subs:
+            text = s.plaintext.strip()
+
+            # Temporary to correct pysubs2 parsing mistakes
+            if is_websub:
+                text = text.split('\n\n')[0]
+
+            if not skip_empty_subs or text.strip():
+                sub_start = max(s.start + subs_delay, 0) // 10 * 10
+                sub_end = max(s.end + subs_delay, 0) // 10 * 10
+                subs_list.append( { 'text': text, 'start': sub_start, 'end': sub_end } )
+
+        return subs_list
+
+
 ### Called when user presses the migaku key in mpv, transmits info about playing environment
 
 # TODO: Split this
-def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_sub_info, mpv_subs_delay, mpv_resx, mpv_resy):
+def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_sub_info, mpv_secondary_sub_info, mpv_subs_delay, mpv_resx, mpv_resy):
     global subs_json
+    global secondary_subs_json
     global media_path
     global audio_track
     global subs_delay
@@ -347,7 +486,7 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
     resy = int(mpv_resy)
 
 
-    if mpv_sub_info == '' or mpv_sub_info == None:
+    if not mpv_sub_info:
         mpv.show_text('Please select a subtitle track.')
         return
 
@@ -355,134 +494,21 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
         mpv.show_text('Please select a subtitle track that was not created by Migaku.')
         return
 
-    sub_path = None
+    secondary_subs = []
+    if mpv_secondary_sub_info:
+        try:
+            secondary_subs = load_subs_from_info(mpv_secondary_sub_info)
+        except SubtitleLoadError as e:
+            pass
 
-    if '*' in mpv_sub_info:
-        internal_sub_info = mpv_sub_info.split('*')
-        if len(internal_sub_info) == 2:
-            ffmpeg_track = internal_sub_info[0]
-            sub_codec = internal_sub_info[1]
-            if sub_codec in ['subrip', 'ass']:
-                if not ffmpeg:
-                    mpv.show_text('Using internal subtitles requires ffmpeg to be located in the plugin directory.')
-                    return
-                mpv.show_text('Exporting internal subtitle track...', duration=150.0)    # Next osd message will close it
-                if sub_codec == 'subrip':
-                    sub_extension = 'srt'
-                else:
-                    sub_extension = sub_codec
-                sub_path = tmp_dir + '/' + str(pathlib.Path(media_path).stem) + '.' + sub_extension
-                args = [ffmpeg, '-y', '-loglevel', 'error', '-i', media_path, '-map', '0:' + ffmpeg_track, sub_path]
-                try:
-                    timeout = subtitle_export_timeout if subtitle_export_timeout > 0 else None
-                    subprocess.run(args, timeout=timeout)
-                    if not os.path.isfile(sub_path):
-                        raise FileNotFoundError
-                except TimeoutError:
-                    mpv.show_text('Exporting internal subtitle track timed out.')
-                    return
-                except:
-                    mpv.show_text('Exporting internal subtitle track failed.')
-                    return
-            else:
-                mpv.show_text('Selected internal subtitle track is not supported.\n\nOnly SRT and ASS tracks are supported.\n\nSelected track is ' + sub_codec)
-                return
-    else:
-        sub_path = mpv_sub_info
-
-    if not sub_path:    # Should not happen
-        return
-
-    # Support drag & drop subtitle files on some systems
-    sub_path = path_clean(sub_path)
-
-    # Web subtitle?
-    is_websub = False
-    if sub_path.startswith('edl://'):
-        i = sub_path.rfind('http')
-        if i >= 0:
-            url = sub_path[i:]
-            
-            try:
-                response = requests.get(url)
-                tmp_sub_path = os.path.join(tmp_dir, 'websub_%d.vtt' % round(time.time() * 1000))
-                with open(tmp_sub_path, 'wb') as f:
-                    f.write(response.content)
-            
-                sub_path = tmp_sub_path
-                is_websub = True
-            except Exception:
-                mpv.show_text('Downloading web subtitles failed.')
-                return
-
-    elif sub_path.startswith('http'):
-        try:            
-            response = requests.get(sub_path)
-            tmp_sub_path = os.path.join(tmp_dir, 'websub_%d' % round(time.time() * 1000))
-            with open(tmp_sub_path, 'wb') as f:
-                f.write(response.content)
-            
-            sub_path = tmp_sub_path
-        except Exception:
-            mpv.show_text('Downloading web subtitles failed.')
-            return
-
-    if not os.path.isfile(sub_path):
-        print('SUBS Not found:', sub_path)
-        mpv.show_text('The subtitle file "%s" was not found.' % sub_path)
-        return
-
-    # Determine subs encoding
-    subs_encoding = 'utf-8'
-    
     try:
-        subs_f = open(sub_path, 'rb')
-        subs_data = subs_f.read()
-        subs_f.close()
-
-        boms_for_enc = [
-            ('utf-32',      (codecs.BOM_UTF32_LE, codecs.BOM_UTF32_BE)),
-            ('utf-16',      (codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)),
-            ('utf-8-sig',   (codecs.BOM_UTF8,)),
-        ]
-
-        for enc, boms in boms_for_enc:
-            if any(subs_data.startswith(bom) for bom in boms):
-                subs_encoding = enc
-                print('SUBS: Detected encoding (bom):', enc)
-                break
-        else:
-            chardet_ret = chardet.detect(subs_data)
-            subs_encoding = chardet_ret['encoding']
-            print('SUBS: Detected encoding (chardet):', chardet_ret)
-    except:
-        print('SUBS: Detecting encoding failed. Defaulting to utf-8')
-
-    # Parse subs and generate json for frontend
-    try:
-        with open(sub_path, encoding=subs_encoding, errors='replace') as fp:
-            subs = pysubs2.SSAFile.from_file(fp)
-    except:
-        mpv.show_text('Loading subtitle file "%s" failed.' % sub_path)
+        subs = load_subs_from_info(mpv_sub_info)
+    except SubtitleLoadError as e:
+        mpv.show_text(str(e))
         return
 
-    subs.sort()
-    subs_list = []
-
-    for s in subs:
-        text = s.plaintext.strip()
-
-        # Temporary to correct pysubs2 parsing mistakes
-        if is_websub:
-            text = text.split('\n\n')[0]
-
-        if not skip_empty_subs or text.strip():
-            sub_start = max(s.start + subs_delay, 0) // 10 * 10
-            sub_end = max(s.end + subs_delay, 0) // 10 * 10
-            subs_list.append( { 'text': text, 'start': sub_start, 'end': sub_end } )
-
-    subs_json = json.dumps(subs_list)
-
+    subs_json = json.dumps(subs)
+    secondary_subs_json = json.dumps(secondary_subs)
 
     # Open or refresh frontend
     mpv.show_text('Opening in Browser...', 2.0)
@@ -762,6 +788,7 @@ def main():
     for path in ['/icons/migakufavicon.png', '/icons/anki.png', '/icons/bigsearch.png']:
         server.set_get_file_server(path, plugin_dir + path)
     server.set_get_handler('/subs', get_handler_subs)
+    server.set_get_handler('/secondary_subs', get_handler_secondary_subs)
     server.set_get_handler('/data', get_handler_data)
     server.set_post_handler('/anki', post_handler_anki)
     server.set_post_handler('/mpv_control', post_handler_mpv_control)
@@ -780,7 +807,7 @@ def main():
                 if cmd == 'sub-start':
                     send_subtitle_time(event_args[2])
                 elif cmd == 'open':
-                    load_and_open_migaku(*event_args[2:9+1])
+                    load_and_open_migaku(*event_args[2:10+1])
                 elif cmd == 'resync':
                     resync_subtitle(*event_args[2:4+1])
 

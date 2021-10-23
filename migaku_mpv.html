@@ -121,7 +121,7 @@
             <option>Hidden</option>
         </select>
 
-        <div id="versionInfo">v0.4.1</div>
+        <div id="versionInfo">v0.5.0</div>
     </div>
 
     <div id="subsList">
@@ -132,6 +132,7 @@
         let eventSource = new EventSource('/data');     // Event source that provides updates like current subtitle etc...
         
         let subs = [];                                  // All loaded subs
+        let secondary_subs = [];
         let sub_ids_by_start = new Map();               // Sub ids in list keyed by start time for seeking, rounded to next hundredth of second
 
         let current_sub_id = null;
@@ -395,7 +396,15 @@
             var start = subs[sub_id_start].start;
             var end = subs[sub_id_end].end;
             var texts = [];
+            var translation_texts = [];
             var unknowns = [];
+
+            for (var ssub_id = 0; ssub_id < secondary_subs.length; ssub_id++)
+            {
+                const ssub = secondary_subs[ssub_id];
+                if (start < ssub.end && ssub.start < end)
+                    translation_texts.push(ssub.text);
+            }
 
             for (var sub_id = sub_id_start; sub_id <= sub_id_end; sub_id++)
             {
@@ -405,6 +414,7 @@
             }
 
             var text = texts.join('\n');
+            var translation_text = translation_texts.join('\n');
 
             // TODO: Fetch these from the plugin
             var padding_start = 500;
@@ -416,7 +426,13 @@
             if (start < 0)
                 start = 0;
 
-            return [text, unknowns, start, end];
+            return {
+                'text': text,
+                'translation_text': translation_text,
+                'unknowns': unknowns,
+                'start': start,
+                'end': end
+            }
         }
 
         function anki_mass_export(one_t_only)
@@ -699,9 +715,11 @@
 
 
         // Sets up the page from a list of subtitles
-        function loadSubs(subtitles)
+        function loadSubs(subtitles, secondary_subtitles)
         {
             subs = subtitles;
+            secondary_subs = secondary_subtitles;
+
             sub_ids_by_start.clear();
 
             var subsList = document.getElementById('subsList');
@@ -751,16 +769,22 @@
                 subsList.appendChild(msg);
             }
         }
+
         
         // Starts request for subtitles and sets up the page
-        fetch('./subs')
-        .then(res => res.json())
-        .then((out) => {
-            loadSubs(out);
-        })
-        .catch(err => {
-            throw err; /*alert('Loading subs failed');*/
-        });
+        (async function() {
+            const subs_promise = fetch('./subs');
+            const secondary_subs_promise = fetch('./secondary_subs');
+            
+            const subs_response = await subs_promise;
+            const subtitles = await subs_response.json();
+
+            const secondary_subs_response = await secondary_subs_promise;
+            const secondary_subtitles = await secondary_subs_response.json();
+
+            loadSubs(subtitles, secondary_subtitles);
+        })()
+
 
 
         // Key event handlers

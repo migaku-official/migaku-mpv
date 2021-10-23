@@ -376,6 +376,12 @@ local function on_migaku_open()
         sub_path = ''
     end
 
+    -- get secondary subtitle path
+    local secondary_sub_path = get_active_subtitle_track_path(true)
+    if secondary_sub_path == nil then
+        secondary_sub_path = ''
+    end
+
     -- get playing file
     local file_name = mp.get_property('path')
     if file_name == nil or file_name == '' then
@@ -398,7 +404,7 @@ local function on_migaku_open()
     -- get mpv pid
     local pid = utils.getpid()
 
-    mp.commandv('script-message', '@migaku', 'open', cwd, pid, file_name, audio_track, sub_path, sub_delay, resx, resy)
+    mp.commandv('script-message', '@migaku', 'open', cwd, pid, file_name, audio_track, sub_path, secondary_sub_path, sub_delay, resx, resy)
 end
 
 

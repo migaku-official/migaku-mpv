@@ -25,7 +25,7 @@ class AnkiExporter():
 
 
 
-    def export_card(self, media_file, audio_track, text, time_start, time_end, unknowns=[], bulk_count=1, bulk_timestamp=time.time()):
+    def export_card(self, media_file, audio_track, text_primary, text_secondary, time_start, time_end, unknowns=[], bulk_count=1, bulk_timestamp=time.time()):
 
         if not media_file.startswith('http'):
             media_file = os.path.normpath(media_file)
@@ -54,7 +54,8 @@ class AnkiExporter():
         data = {
             'version':   (None, 2),
             'timestamp': (None, round(bulk_timestamp)),
-            'primary':   (None, text),
+            'primary':   (None, text_primary),
+            'secondary': (None, text_secondary),
             'unknown':   (None, json.dumps(unknowns)),
             'image':     (img_name, img_file),
             'audio':     (audio_name, audio_file),
