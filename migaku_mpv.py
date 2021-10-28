@@ -466,7 +466,7 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
         return
 
     mpv_executable = psutil.Process(int(mpv_pid)).cmdline()[0]
-    if os.path.split(mpv_executable)[-1].lower() in ['mpv', 'mpv.exe']:
+    if os.path.split(mpv_executable)[-1].lower() in ['mpv', 'mpv.exe', 'mpv-bundle']:
         anki_exporter.mpv_cwd = mpv_cwd
         anki_exporter.mpv_executable = mpv_executable
     else:
