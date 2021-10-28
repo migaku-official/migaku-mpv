@@ -70,6 +70,7 @@ jobs:
       run: |
         wget -O ffmpeg.zip "http://dicts.migaku.io/ffmpeg/${{ runner.os }}"
         unzip ffmpeg.zip -d dist/migaku_mpv
+        chmod +x dist/migaku_mpv/ffmpeg
     - name: Include ffmpeg (Windows)
       if: ${{ runner.os == 'Windows' }}
       shell: pwsh
