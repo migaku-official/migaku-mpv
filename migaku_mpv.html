@@ -121,7 +121,7 @@
             <option>Hidden</option>
         </select>
 
-        <div id="versionInfo">v0.5.1</div>
+        <div id="versionInfo">v0.6.0</div>
     </div>
 
     <div id="subsList">
@@ -176,6 +176,14 @@
             else if (cmd == 'r')
             {
                 location.reload();
+            }
+            else if (cmd == 'e')
+            {
+                export_current_card();
+            }
+            else if (cmd == 'l')
+            {
+                lookup_current();
             }
         };
         
@@ -786,6 +794,26 @@
         })()
 
 
+        function lookup_current() {
+            if (current_sub_id != null)
+            {
+                var current_sub_element = get_sub_element_by_id(current_sub_id);
+                var unknowns = get_unknowns_container(current_sub_element);
+
+                if (unknowns.length > 0)
+                    request_dict_search(unknowns);
+            }
+        }
+
+
+        function export_current_card() {
+            if (current_sub_id != null)
+            {
+                var card_data = get_card_data(current_sub_id);
+                request_cards_export([card_data]);
+            }
+        }
+
 
         // Key event handlers
         function on_key_down(evt)
@@ -840,27 +868,14 @@
             // e key, search current line's unknowns
             else if (evt.keyCode == 69)
             {
-                if (current_sub_id != null)
-                {
-                    var current_sub_element = get_sub_element_by_id(current_sub_id);
-                    var unknowns = get_unknowns_container(current_sub_element);
-
-                    if (unknowns.length > 0)
-                        request_dict_search(unknowns);
-                }
-
+                lookup_current();
                 evt.preventDefault();
             }
 
             // q key, anki card for current line
             else if (evt.keyCode == 81)
             {
-                if (current_sub_id != null)
-                {
-                    var card_data = get_card_data(current_sub_id);
-                    request_cards_export([card_data]);
-                }
-
+                export_current_card();
                 evt.preventDefault();
             }
             

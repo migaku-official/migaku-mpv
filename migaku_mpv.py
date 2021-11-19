@@ -125,7 +125,7 @@ def get_handler_data(socket):
         else:
             cmd = data[0]
 
-            if cmd in ['s', 'r']:
+            if cmd in ['s', 'r', 'e', 'l']:
                 send_msg = 'data: ' + data + '\r\n\r\n'
                 try:
                     socket.sendall(send_msg.encode())
@@ -302,6 +302,25 @@ def send_subtitle_time(arg):
 
     data_queues_lock.release()
 
+
+def browser_export_current():
+
+    data_queues_lock.acquire()
+
+    for q in data_queues:
+        q.put('e')
+
+    data_queues_lock.release()
+
+
+def browser_lookup_current():
+
+    data_queues_lock.acquire()
+
+    for q in data_queues:
+        q.put('l')
+
+    data_queues_lock.release()
 
 
 def open_webbrowser_new_tab():
@@ -810,6 +829,10 @@ def main():
                     load_and_open_migaku(*event_args[2:10+1])
                 elif cmd == 'resync':
                     resync_subtitle(*event_args[2:4+1])
+                elif cmd == 'export':
+                    browser_export_current()
+                elif cmd == 'lookup':
+                    browser_lookup_current()
 
     # Close server
     server.close()
