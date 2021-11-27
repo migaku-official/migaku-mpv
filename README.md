@@ -10,7 +10,7 @@ Install the latest mpv version ([Downloads](https://mpv.io/installation/)). Seco
 
 Start it at least once to create the configuration folders.
 
-[Download](./releases/latest) the latest release of Migaku MPV for your operating system.
+[Download](https://github.com/migaku-official/migaku-mpv/releases/latest) the latest release of Migaku MPV for your operating system.
 
 Extract the `migaku_mpv` folder from the downloaded archive into the `scripts` folder of mpv.
 
