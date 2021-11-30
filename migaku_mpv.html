@@ -121,7 +121,7 @@
             <option>Hidden</option>
         </select>
 
-        <div id="versionInfo">v0.6.0</div>
+        <div id="versionInfo">v0.6.1</div>
     </div>
 
     <div id="subsList">
@@ -451,7 +451,7 @@
             {
                 var i_card = get_card_data(i);
 
-                if (!one_t_only || i_card[1].length == 1)
+                if (!one_t_only || i_card.unknowns.length == 1)
                     cards.push(i_card);
             }
 
