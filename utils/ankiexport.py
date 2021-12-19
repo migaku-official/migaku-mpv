@@ -9,8 +9,7 @@ class AnkiExporter():
 
     def __init__(self):
         
-        self.mpv_executable = 'mpv'
-        self.mpv_cwd = os.path.expanduser('~')
+        self.ffmpeg_executable = 'ffmpeg'
         
         self.tmp_dir = '.'
 
@@ -33,11 +32,11 @@ class AnkiExporter():
         file_base = str(int(round(time.time() * 1000)))
 
         img_name = file_base + '.' + self.image_format
-        img_path = self.tmp_dir + '/' + img_name
+        img_path = os.path.join(self.tmp_dir, img_name)
         img_path = os.path.normpath(img_path)
 
         audio_name = file_base + '.' + self.audio_format
-        audio_path = self.tmp_dir + '/' + audio_name
+        audio_path = os.path.join(self.tmp_dir, audio_name)
         audio_path = os.path.normpath(audio_path)
 
         audio_proc = self.make_audio(media_file, audio_track, time_start, time_end, audio_path)
@@ -84,21 +83,33 @@ class AnkiExporter():
 
 
     def make_audio(self, media_file, audio_track, start, end, out_path):
-        args = [self.mpv_executable, '--load-scripts=no',                                       # start mpv without scripts
-                media_file, '--loop-file=no', '--video=no', '--no-ocopy-metadata', '--no-sub',  # just play audio
-                '--aid=' + str(audio_track),
-                '--start=' + str(start), '--end=' + str(end),
-                '--o=' + out_path]
+        args = [
+            self.ffmpeg_executable,
+            '-y', '-loglevel', 'error',
+            '-ss', str(start),
+            '-i', media_file,
+            '-t', str(end-start),
+            out_path
+        ]
 
-        return subprocess.Popen(args, cwd=self.mpv_cwd)
+        if audio_track >= 0:
+            args[-1:-1] = [
+                '-map',
+                '0:' + str(audio_track)
+            ]
+
+        return subprocess.Popen(args)
 
 
     def make_snapshot(self, media_file, start, end, out_path):
-        args = [self.mpv_executable, '--load-scripts=no',                                       # start mpv without scripts
-                media_file, '--loop-file=no', '--audio=no', '--no-ocopy-metadata', '--no-sub',  # just play video
-                '--frames=1',                                                                   # for one frame
-                '--start=' + str( (start + end) / 2),                                           # start in the middle
-                '--o=' + out_path]
+        args = [
+            self.ffmpeg_executable,
+            '-y', '-loglevel', 'error',
+            '-ss', str((start + end) / 2),
+            '-i', media_file,
+            '-vframes', '1',
+            out_path
+        ]
 
         # See https://ffmpeg.org/ffmpeg-filters.html#scale-1 for scaling options
 
@@ -112,8 +123,10 @@ class AnkiExporter():
 
         # Only apply filter if any axis is set to non-auto
         if w > 0 or h > 0:
-            # best would be 'min(iw,w)' but mpv doesn't allow passing filters with apostrophes
-            scale_arg = '--vf-add=scale=w=%d:h=%d:force_original_aspect_ratio=decrease' % (w, h)
-            args.append(scale_arg)
+            args[-1:-1] = [
+                '-filter:v',
+                'scale=w=\'min(iw,%d)\':h=\'min(ih,%d)\':force_original_aspect_ratio=decrease'
+                % (w, h)
+            ]
 
-        return subprocess.Popen(args, cwd=self.mpv_cwd)
+        return subprocess.Popen(args)

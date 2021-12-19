@@ -69,7 +69,6 @@ reuse_last_tab_timeout = 1.5
 ffmpeg = 'ffmpeg'
 ffsubsync = 'ffsubsync'
 rubysubs = 'rubysubs'
-mpv_external = None
 skip_empty_subs = True
 subtitle_export_timeout = 0
 
@@ -484,18 +483,6 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
         mpv.show_text('Not ready...')
         return
 
-    mpv_executable = psutil.Process(int(mpv_pid)).cmdline()[0]
-    if os.path.split(mpv_executable)[-1].lower() in ['mpv', 'mpv.exe', 'mpv-bundle']:
-        anki_exporter.mpv_cwd = mpv_cwd
-        anki_exporter.mpv_executable = mpv_executable
-    else:
-        print('Using external mpv')
-        if not mpv_external:
-            mpv.show_text('Please set mpv_external in the config file.')
-            return
-        anki_exporter.mpv_cwd = None
-        anki_exporter.mpv_executable = mpv_external
-
     media_path = mpv_media_path
     audio_track = int(mpv_audio_track)
 
@@ -681,7 +668,6 @@ def main():
     global ffmpeg
     global ffsubsync
     global rubysubs
-    global mpv_external
     global skip_empty_subs
     global sub_font_name
     global sub_font_size
@@ -759,6 +745,14 @@ def main():
     print('BRS:', browser)
     webbrowser_name = browser
 
+
+    ffmpeg = find_executable('ffmpeg')
+    ffsubsync = find_executable('ffsubsync')
+    rubysubs = find_executable('rubysubs')
+    print('EXES:', { 'ffmpeg': ffmpeg, 'ffsubsync': ffsubsync, 'rubysubs': rubysubs})
+
+
+    anki_exporter.ffmpeg_executable = ffmpeg
     anki_exporter.tmp_dir = tmp_dir
 
     anki_w = None
@@ -779,12 +773,6 @@ def main():
 
     print('ANKI:', vars(anki_exporter))
 
-
-    ffmpeg = find_executable('ffmpeg')
-    ffsubsync = find_executable('ffsubsync')
-    rubysubs = find_executable('rubysubs')
-    mpv_external = find_executable('mpv', 'mpv_external')
-    print('EXES:', { 'ffmpeg': ffmpeg, 'ffsubsync': ffsubsync, 'rubysubs': rubysubs, 'mpv_external': mpv_external })
 
     skip_empty_subs = config.get('skip_empty_subs', 'yes').lower() == 'yes'
     try:
