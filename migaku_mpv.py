@@ -168,19 +168,10 @@ def post_handler_anki(socket, data):
         start = card['start'] / 1000.0
         end = card['end'] / 1000.0
 
-        r = anki_exporter.export_card(media_path, audio_track, text, translation_text, start, end, unknowns, len(cards), timestamp)
-
-        if r == -1: # Failure
-            mpv.show_text('Exporting card failed.\n\nMake sure Anki is running and that you are using the latest versions of Migaku Dictionary, Migaku Browser Extension and Migaku MPV.', 8.0)
-            return
-        if r == -2: # Cancelled
-            mpv.show_text('Card export cancelled.')
-            return
-        if r == -3: # Image/Audio exporting failrue
-            mpv.show_text('Exporting image/audio failed.')
-            return
-        if r < 0:
-            mpv.show_text('Unknown export error.')
+        try:
+            anki_exporter.export_card(media_path, audio_track, text, translation_text, start, end, unknowns, len(cards), timestamp)
+        except AnkiExporter.ExportError as e:
+            mpv.show_text('Exporting card failed:\n\n' + str(e), 8.0)
             return
 
         if is_mass_export:
@@ -758,8 +749,6 @@ def main():
         browser = browser_support.expand_browser_name(browser)
     print('BRS:', browser)
     webbrowser_name = browser
-
-    anki_exporter.tmp_dir = tmp_dir
 
     anki_w = None
     anki_h = None
