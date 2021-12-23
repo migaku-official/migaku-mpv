@@ -169,7 +169,7 @@ def post_handler_anki(socket, data):
         end = card['end'] / 1000.0
 
         try:
-            anki_exporter.export_card(media_path, audio_track, text, translation_text, start, end, unknowns, len(cards), timestamp)
+            anki_exporter.export_card(media_path, audio_track, text, translation_text, start, end, unknowns, i, len(cards), timestamp)
         except AnkiExporter.ExportError as e:
             mpv.show_text('Exporting card failed:\n\n' + str(e), 8.0)
             return

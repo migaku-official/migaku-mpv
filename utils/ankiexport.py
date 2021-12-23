@@ -27,7 +27,7 @@ class AnkiExporter():
 
 
 
-    def export_card(self, media_file, audio_track, text_primary, text_secondary, time_start, time_end, unknowns=[], bulk_count=1, bulk_timestamp=time.time()):
+    def export_card(self, media_file, audio_track, text_primary, text_secondary, time_start, time_end, unknowns=[], bulk_id=0, bulk_count=1, bulk_timestamp=time.time()):
 
         if not media_file.startswith('http'):
             media_file = os.path.normpath(media_file)
@@ -51,8 +51,6 @@ class AnkiExporter():
         audio_path = os.path.join(col_path, audio_name)
         audio_path = os.path.normpath(audio_path)
 
-        print(img_path, audio_path)
-
         audio_proc = self.make_audio_proc(media_file, audio_track, time_start, time_end, audio_path)
         screenshot_proc = self.make_snapshot_proc(media_file, time_start, time_end, img_path)
         audio_proc.wait()
@@ -69,7 +67,8 @@ class AnkiExporter():
             'unknown_words':        unknowns,
             'image':                img_name,
             'sentence_audio':       audio_name,
-            'batch_count':          bulk_count
+            'batch_count':          bulk_count,
+            'batch_id':             bulk_id,
         }
 
         data['batch_count'] = bulk_count
