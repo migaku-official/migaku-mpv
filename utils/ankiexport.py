@@ -41,7 +41,7 @@ class AnkiExporter():
         info = r.json()
         col_path = info['col_media_path']
         
-        file_base = str(int(round(time.time() * 1000)))
+        file_base = 'migaku-local-' + str(int(round(time.time() * 1000)))
 
         img_name = file_base + '.' + self.image_format
         img_path = os.path.join(col_path, img_name)
@@ -70,8 +70,6 @@ class AnkiExporter():
             'batch_count':          bulk_count,
             'batch_id':             bulk_id,
         }
-
-        data['batch_count'] = bulk_count
 
         try:
             r = requests.post(
