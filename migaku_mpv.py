@@ -29,7 +29,7 @@ dev_mode = os.path.exists('./dev_flag')
 
 plugin_is_packaged = getattr(sys, 'frozen', False)          # if built with pyinstaller
 
-if plugin_is_packaged:                   
+if plugin_is_packaged:
     plugin_dir = os.path.dirname(sys.executable)
 else:
     plugin_dir = os.path.dirname(os.path.abspath(__file__))
@@ -81,7 +81,7 @@ def path_clean(path):
     if path.startswith('file:'):
         uri_path = urllib.parse.urlparse(path).path
         return urllib.request.url2pathname(uri_path)
-    
+
     return path
 
 
@@ -147,7 +147,7 @@ def post_handler_anki(socket, data):
 
     r = HttpResponse()
     r.send(socket)
-    
+
     if audio_track < 0:
         mpv.show_text('Please select an audio track before opening Migaku MPV if you want to export Anki cards.')
         return
@@ -168,7 +168,7 @@ def post_handler_anki(socket, data):
         start = card['start'] / 1000.0
         end = card['end'] / 1000.0
 
-        r = anki_exporter.export_card(media_path, audio_track, text, translation_text, start, end, unknowns, len(cards), timestamp)
+        r, data = anki_exporter.export_card(media_path, audio_track, text, translation_text, start, end, unknowns, len(cards), timestamp)
 
         if r == -1: # Failure
             mpv.show_text('Exporting card failed.\n\nMake sure Anki is running and that you are using the latest versions of Migaku Dictionary, Migaku Browser Extension and Migaku MPV.', 8.0)
@@ -177,7 +177,10 @@ def post_handler_anki(socket, data):
             mpv.show_text('Card export cancelled.')
             return
         if r == -3: # Image/Audio exporting failrue
-            mpv.show_text('Exporting image/audio failed.')
+            mpv.show_text(f'''
+            Exporting image/audio failed.
+            Media file: {data}
+            ''')
             return
         if r < 0:
             mpv.show_text('Unknown export error.')
@@ -211,7 +214,7 @@ def post_handler_set_subs(socket, data):
     if data:
         path = os.path.join(tmp_dir, 'migaku_parsed_%d.ass' % round(time.time() * 1000))
         json_data = json.loads(data)
-        
+
         subs = pysubs2.SSAFile()
 
         subs.info = {
@@ -390,25 +393,25 @@ def load_subs_from_info(sub_info):
             i = sub_path.rfind('http')
             if i >= 0:
                 url = sub_path[i:]
-                
+
                 try:
                     response = requests.get(url)
                     tmp_sub_path = os.path.join(tmp_dir, 'websub_%d.vtt' % round(time.time() * 1000))
                     with open(tmp_sub_path, 'wb') as f:
                         f.write(response.content)
-                
+
                     sub_path = tmp_sub_path
                     is_websub = True
                 except Exception:
                     raise SubtitleLoadError('Downloading web subtitles failed.')
 
         elif sub_path.startswith('http'):
-            try:            
+            try:
                 response = requests.get(sub_path)
                 tmp_sub_path = os.path.join(tmp_dir, 'websub_%d' % round(time.time() * 1000))
                 with open(tmp_sub_path, 'wb') as f:
                     f.write(response.content)
-                
+
                 sub_path = tmp_sub_path
             except Exception:
                 raise SubtitleLoadError('Downloading web subtitles failed.')
@@ -419,7 +422,7 @@ def load_subs_from_info(sub_info):
 
         # Determine subs encoding
         subs_encoding = 'utf-8'
-        
+
         try:
             subs_f = open(sub_path, 'rb')
             subs_data = subs_f.read()
@@ -569,7 +572,7 @@ def resync_subtitle(resync_sub_path, resync_reference_path, resync_reference_tra
 
     out_base_path = path_ext_split[0] + '-resynced'     # Out path without index or extension
     out_path = out_base_path + path_ext_split[1]
-    
+
     # If the out path already exists count up until free file is found
     try_i = 1
     while os.path.exists(out_path):
@@ -585,7 +588,7 @@ def resync_subtitle(resync_sub_path, resync_reference_path, resync_reference_tra
             mpv.show_text('Syncing finished.')
         else:
             mpv.show_text('Syncing failed.')
-    
+
     t = threading.Thread(target=sync_thread_func)
     t.start()
 
@@ -600,7 +603,7 @@ def exception_hook(exc_type, exc_value, exc_traceback):
     traceback_str = ''.join(traceback_strs)
     print(traceback_str)
     print('EXITING')
-    
+
     # What folllows is pretty dirty, but all threads need to die and I'm lazy right now
     # TODO
 
@@ -665,7 +668,7 @@ def find_executable(name, config_name=None):
     for cp in check_paths:
         if os.path.isfile(cp):
             return cp
-    
+
     return shutil.which(name)   # Set to none when not found
 
 
@@ -743,7 +746,7 @@ def main():
     except:
         try_port_max = 2233
     try_ports = range(try_port_min, try_port_max+1)
-    
+
 
     reuse_last_tab = config.get('reuse_last_tab', 'yes').lower() == 'yes'
     try:
