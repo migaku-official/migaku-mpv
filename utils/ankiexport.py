@@ -1,4 +1,3 @@
-from re import A
 import subprocess
 import requests
 import time
