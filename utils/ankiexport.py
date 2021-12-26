@@ -58,7 +58,7 @@ class AnkiExporter():
             img_file = open(img_path,'rb')
             audio_file = open(audio_path,'rb')
         except Exception:
-            return -3, media_file       # File generation error
+            return -3      # File generation error
 
         data = {
             'version':   (None, 2),
@@ -80,15 +80,15 @@ class AnkiExporter():
                 files=data
             )
         except requests.ConnectionError:
-            return -1, None
+            return -1
 
         if r.status_code != 200:
-            return -1, None
+            return -1
 
         if b'cancelled' in r.content:
-            return -2, None
+            return -2
 
-        return 0, None
+        return 0
 
     def ffmpeg_audio(self, media_file, audio_track, start, end, out_path):
         args = [
