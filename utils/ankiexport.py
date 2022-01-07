@@ -20,6 +20,7 @@ class AnkiExporter():
     def __init__(self):
 
         self.mpv_executable = 'mpv'
+        self.ffmpeg_executable = 'ffmpeg'
         self.mpv_cwd = os.path.expanduser('~')
 
         self.tmp_dir = '.'
@@ -91,7 +92,7 @@ class AnkiExporter():
 
     def ffmpeg_audio(self, media_file, audio_track, start, end, out_path):
         args = [
-                'ffmpeg',
+                self.ffmpeg_executable,
                 '-y', '-loglevel', 'error',
                 '-ss', str(start),
                 '-to', str(end),
@@ -139,7 +140,7 @@ class AnkiExporter():
 
     def ffmpeg_screenshot(self, media_file, start, end, out_path):
         args = [
-                'ffmpeg',
+                self.ffmpeg_executable,
                 '-y', '-loglevel', 'error',
                 '-ss', str((start + end) / 2),
                 '-i', media_file,
