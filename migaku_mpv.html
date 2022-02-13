@@ -589,14 +589,14 @@
                         pitch_shapes = 'yes';
                 }
 
-                var mode = document.querySelector('#migaku-toolbar-po-inner > div:nth-child(4) > div > div.migaku-dropdown-selected-option').innerText.toLowerCase().replace('only ', '');
+                var mode = document.querySelector('#migaku-toolbar-po-inner > div:nth-child(4) > div > div.migaku-select-menu-selected-option').innerText.toLowerCase().replace('only ', '');
 
                 parser = 'ja';
                 parser_args = [mode, pitch_highlighting, pitch_shapes, unknown_underlining, one_t_highlighting, 'yes'];
             }
             else if (lang == 'zh')
             {
-                var mode = document.querySelector('#migaku-toolbar-po-inner > div:nth-child(4) > div > div.migaku-dropdown-selected-option').innerText.toLowerCase().replace(' - ', '');;
+                var mode = document.querySelector('#migaku-toolbar-po-inner > div:nth-child(4) > div > div.migaku-select-menu-selected-option').innerText.toLowerCase().replace(' - ', '');;
 
                 var tone_highlighting = 'no';
                 if (document.querySelector('input[name="highlighting"]').nextElementSibling.classList.contains('checked'))
@@ -607,8 +607,7 @@
             }
             else if (lang == 'zh-hk')
             {
-                var mode = document.querySelector('#migaku-toolbar-po-inner > div:nth-child(4) > div > div.migaku-dropdown-selected-option').innerText.toLowerCase().replace('only ', '');
-
+                var mode = document.querySelector('#migaku-toolbar-po-inner > div:nth-child(4) > div > div.migaku-select-menu-selected-option').innerText.toLowerCase().replace('only ', '');
                 var tone_highlighting = 'no';
                 if (document.querySelector('input[name="highlighting"]').nextElementSibling.classList.contains('checked'))
                     tone_highlighting = 'yes';
