@@ -268,13 +268,13 @@
             if (words.length < 1)
                 return;
 
-            var frm = new FormData();
-            frm.append("version", 2);
-            frm.append("terms", JSON.stringify(words));
+            const data = {
+                'terms': words
+            };
 
             var xhr = new XMLHttpRequest();
-            xhr.open('POST', 'http://127.0.0.1:12345/search');
-            xhr.send(frm);
+            xhr.open('POST', 'http://127.0.0.1:44432/search');
+            xhr.send(JSON.stringify(data));
         }
         
         // Sends a control command to the plugin
