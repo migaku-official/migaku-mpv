@@ -168,19 +168,10 @@ def post_handler_anki(socket, data):
         start = card['start'] / 1000.0
         end = card['end'] / 1000.0
 
-        r = anki_exporter.export_card(media_path, audio_track, text, translation_text, start, end, unknowns, len(cards), timestamp)
-
-        if r == -1: # Failure
-            mpv.show_text('Exporting card failed.\n\nMake sure Anki is running and that you are using the latest versions of Migaku Dictionary, Migaku Browser Extension and Migaku MPV.', 8.0)
-            return
-        if r == -2: # Cancelled
-            mpv.show_text('Card export cancelled.')
-            return
-        if r == -3: # Image/Audio exporting failrue
-            mpv.show_text('Exporting image/audio failed.')
-            return
-        if r < 0:
-            mpv.show_text('Unknown export error.')
+        try:
+            anki_exporter.export_card(media_path, audio_track, text, translation_text, start, end, unknowns, i, len(cards), timestamp)
+        except AnkiExporter.ExportError as e:
+            mpv.show_text('Exporting card failed:\n\n' + str(e), 8.0)
             return
 
         if is_mass_export:
@@ -485,8 +476,7 @@ def load_and_open_migaku(mpv_cwd, mpv_pid, mpv_media_path, mpv_audio_track, mpv_
         return
 
     mpv_executable = psutil.Process(int(mpv_pid)).cmdline()[0]
-    ffmpeg_executable = find_executable('ffmpeg')
-    anki_exporter.ffmpeg_executable = ffmpeg_executable
+
     if os.path.split(mpv_executable)[-1].lower() in ['mpv', 'mpv.exe', 'mpv-bundle']:
         anki_exporter.mpv_cwd = mpv_cwd
         anki_exporter.mpv_executable = mpv_executable
@@ -761,8 +751,6 @@ def main():
     print('BRS:', browser)
     webbrowser_name = browser
 
-    anki_exporter.tmp_dir = tmp_dir
-
     anki_w = None
     anki_h = None
     try:
@@ -787,6 +775,8 @@ def main():
     rubysubs = find_executable('rubysubs')
     mpv_external = find_executable('mpv', 'mpv_external')
     print('EXES:', { 'ffmpeg': ffmpeg, 'ffsubsync': ffsubsync, 'rubysubs': rubysubs, 'mpv_external': mpv_external })
+
+    anki_exporter.ffmpeg_executable = ffmpeg
 
     skip_empty_subs = config.get('skip_empty_subs', 'yes').lower() == 'yes'
     try:

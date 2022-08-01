@@ -121,7 +121,7 @@
             <option>Hidden</option>
         </select>
 
-        <div id="versionInfo">v0.6.1</div>
+        <div id="versionInfo">v0.8.0</div>
     </div>
 
     <div id="subsList">
@@ -268,13 +268,13 @@
             if (words.length < 1)
                 return;
 
-            var frm = new FormData();
-            frm.append("version", 2);
-            frm.append("terms", JSON.stringify(words));
+            const data = {
+                'terms': words
+            };
 
             var xhr = new XMLHttpRequest();
-            xhr.open('POST', 'http://127.0.0.1:12345/search');
-            xhr.send(frm);
+            xhr.open('POST', 'http://127.0.0.1:44432/search');
+            xhr.send(JSON.stringify(data));
         }
         
         // Sends a control command to the plugin
@@ -589,14 +589,14 @@
                         pitch_shapes = 'yes';
                 }
 
-                var mode = document.querySelector('#migaku-toolbar-po-inner > div:nth-child(4) > div > div.migaku-dropdown-selected-option').innerText.toLowerCase().replace('only ', '');
+                var mode = document.querySelector('#migaku-toolbar-po-inner > div:nth-child(4) > div > div.migaku-select-menu-selected-option').innerText.trim().toLowerCase().replace('only ', '');
 
                 parser = 'ja';
                 parser_args = [mode, pitch_highlighting, pitch_shapes, unknown_underlining, one_t_highlighting, 'yes'];
             }
             else if (lang == 'zh')
             {
-                var mode = document.querySelector('#migaku-toolbar-po-inner > div:nth-child(4) > div > div.migaku-dropdown-selected-option').innerText.toLowerCase().replace(' - ', '');;
+                var mode = document.querySelector('#migaku-toolbar-po-inner > div:nth-child(4) > div > div.migaku-select-menu-selected-option').innerText.trim().toLowerCase().replace(' - ', '');;
 
                 var tone_highlighting = 'no';
                 if (document.querySelector('input[name="highlighting"]').nextElementSibling.classList.contains('checked'))
@@ -607,8 +607,7 @@
             }
             else if (lang == 'zh-hk')
             {
-                var mode = document.querySelector('#migaku-toolbar-po-inner > div:nth-child(4) > div > div.migaku-dropdown-selected-option').innerText.toLowerCase().replace('only ', '');
-
+                var mode = document.querySelector('#migaku-toolbar-po-inner > div:nth-child(4) > div > div.migaku-select-menu-selected-option').innerText.trim().toLowerCase().replace('only ', '');
                 var tone_highlighting = 'no';
                 if (document.querySelector('input[name="highlighting"]').nextElementSibling.classList.contains('checked'))
                     tone_highlighting = 'yes';
