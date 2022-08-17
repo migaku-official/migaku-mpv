@@ -106,7 +106,7 @@ class AnkiExporter():
                 '-ss', str(start),
                 '-to', str(end),
                 '-i', media_file,
-                '-map', '0:' + str(audio_track)
+                '-map', '0:' + str(audio_track),
                 '-acodec', 'mp3',
                 out_path
                 ]
