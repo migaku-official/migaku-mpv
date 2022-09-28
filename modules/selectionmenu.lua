@@ -1,4 +1,4 @@
-SelectionMenu = {}
+local SelectionMenu = {}
 SelectionMenu.__index = SelectionMenu
 
 

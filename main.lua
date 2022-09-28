@@ -64,7 +64,7 @@ for lang in config['secondary_sub_lang']:gmatch('([^,(?! )]+)') do
 end
 
 
-SubMode = {
+local SubMode = {
     Default = 1,
     Reading = 2,
     Recall = 3,
@@ -104,7 +104,7 @@ end
 
 
 local function get_active_subtitle_track_path(secondary, only_external)
-    track_selected_val = secondary and '1' or '0'
+    local track_selected_val = secondary and '1' or '0'
     only_external = only_external == true
 
     local sub_track_path
@@ -199,7 +199,7 @@ local function get_retime_sync_source_list()
 
             if track_path == nil then
                 track_path = mp.get_property('path')
-                local track_id = mp.get_property_native(string.format('track-list/%d/id', i)) - 1
+                track_id = mp.get_property_native(string.format('track-list/%d/id', i)) - 1
                 local ff_type = 'a'
                 if track_type == 'sub' then ff_type = 's' end
                 track_ff_id = string.format('%s:%d', ff_type, track_id)
@@ -217,7 +217,7 @@ end
 
 local function on_initialize()
     -- get ipc handle
-    ipc_handle = get_ipc_handle()
+    local ipc_handle = get_ipc_handle()
 
     if ipc_handle == nil then
         mp.osd_message('ERROR: Getting mpv handle failed.')
@@ -462,7 +462,7 @@ local function get_auto_secondary_sid()
             for i = 0, (tracks_count - 1) do
                 local track_type = mp.get_property(string.format('track-list/%d/type', i))
                 if track_type == 'sub' then
-                    sub_track_path = mp.get_property(string.format('track-list/%d/external-filename', i))
+                    local sub_track_path = mp.get_property(string.format('track-list/%d/external-filename', i))
                     if (sub_track_path == nil) == (check_internal == 1) then
                         local track_id = mp.get_property(string.format('track-list/%d/id', i))
                         local track_lang = mp.get_property(string.format('track-list/%d/lang', i))
