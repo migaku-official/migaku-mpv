@@ -1,0 +1,123 @@
+# Taken from: https://github.com/mpv-player/mpv/blob/master/DOCS/man/lua.rst
+---
+base: lua53
+globals:
+  mp.command:
+    args:
+      - type: string
+  mp.commandv:
+    args:
+      - type: "..."
+  mp.command_native:
+    args:
+      - type: table
+      - required: false
+        type: any
+  mp.command_native_async:
+    args:
+      - type: table
+      - type: function
+  mp.abort_async_command:
+    args:
+      - type:
+          display: MpAsyncCommand
+  mp.get_property:
+    args:
+      - type: string
+      - required: false
+        type: any
+    must-use: true
+  mp.get_property_native:
+    args:
+      - type: string
+      - required: false
+        type: any
+    must-use: true
+  mp.get_property_number:
+    args:
+      - type: string
+      - required: false
+        type: any
+    must-use: true
+  mp.set_property:
+    args:
+      - type: string
+      - type: any
+  mp.set_property_native:
+    args:
+      - type: string
+      - type: any
+  mp.add_key_binding:
+    args:
+      - type: string
+      - type: any
+      - required: false
+        type: any
+  mp.add_forced_key_binding:
+    args:
+      - type: "..."
+  mp.remove_key_binding:
+    args:
+      - type: string
+  mp.register_event:
+    args:
+      - type: string
+      - type: function
+  mp.observe_property:
+    args:
+      - type: string
+      - type: string
+      - type: function
+  mp.get_script_directory:
+    args:
+      - required: false
+        type: nil
+    must_use: true
+  mp.osd_message:
+    args:
+      - type: string
+      - required: false
+        type: number
+  mp.register_script_message:
+    args:
+      - type: string
+      - type: function
+  mp.create_osd_overlay:
+    args:
+      - type: string
+    must-use: true
+  mp.msg.log:
+    args:
+      - type: string
+      - type: "..."
+  mp.msg.fatal:
+    args:
+      - type: "..."
+  mp.msg.error:
+    args:
+      - type: "..."
+  mp.msg.warn:
+    args:
+      - type: "..."
+  mp.msg.info:
+    args:
+      - type: "..."
+  mp.msg.verbose:
+    args:
+      - type: "..."
+  mp.msg.debug:
+    args:
+      - type: "..."
+  mp.msg.trace:
+    args:
+      - type: "..."
+  mp.utils.getcwd:
+    args:
+      - required: false
+        type: nil
+    must-use: true
+  mp.utils.getpid:
+    args:
+      - required: false
+        type: nil
+    must-use: true
