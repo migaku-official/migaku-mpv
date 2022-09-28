@@ -1,7 +1,6 @@
 local SelectionMenu = {}
 SelectionMenu.__index = SelectionMenu
 
-
 function SelectionMenu:create(title, entries, size, title_size, color, selection_color, title_color)
     local ret = {}
     setmetatable(ret, SelectionMenu)
@@ -102,13 +101,17 @@ end
 
 function SelectionMenu:on_key_up()
     self.idx = self.idx - 1
-    if self.idx < 1 then self.idx = self.max_idx end
+    if self.idx < 1 then
+        self.idx = self.max_idx
+    end
     self:update()
 end
 
 function SelectionMenu:on_key_down()
     self.idx = self.idx + 1
-    if self.idx > self.max_idx then self.idx = 1 end
+    if self.idx > self.max_idx then
+        self.idx = 1
+    end
     self:update()
 end
 

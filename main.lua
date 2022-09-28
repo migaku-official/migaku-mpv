@@ -188,7 +188,11 @@ local function get_retime_sync_source_list()
                 track_path = mp.get_property('path')
                 track_id = mp.get_property_native(string.format('track-list/%d/id', i)) - 1
                 local ff_type = 'a'
-                if track_type == 'sub' then ff_type = 's' end
+
+                if track_type == 'sub' then
+                    ff_type = 's'
+                end
+
                 track_ff_id = string.format('%s:%d', ff_type, track_id)
             else
                 track_ff_id = 's:0'
