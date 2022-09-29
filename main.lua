@@ -224,10 +224,11 @@ local function on_initialize()
         return
     end
 
+    local cwd_path = mp.get_script_directory()
 
     -- launch server
 
-    local dev_flag_path = mp.get_script_directory() .. '/dev_flag'
+    local dev_flag_path = cwd_path .. '/dev_flag'
 
     -- Check if dev flag is present. In that case the server is launched manually
     if file_exists(dev_flag_path) then
@@ -237,13 +238,19 @@ local function on_initialize()
 
     local cmd_args = {}
 
-    local script_path = mp.get_script_directory() .. '/migaku_mpv.py'
+    local script_path = cwd_path .. '/migaku_mpv.py'
 
+    local venv_path = cwd_path .. '/.venv/bin'
     -- Run as py script if exists
     if file_exists(script_path) then
         mp.msg.info('Starting Migaku mpv server (script)')
-        cmd_args = { 'python3', script_path }
 
+        -- Attempt to run with virtual environment if possible
+        if file_exists(venv_path) then
+            cmd_args = { venv_path .. '/python3', script_path }
+        else
+            cmd_args = { 'python3', script_path }
+        end
     -- Otherwise try binary
     else
         mp.msg.info('Starting Migaku mpv server (binary)')
