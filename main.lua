@@ -1,6 +1,5 @@
-local utils = require('mp.utils')
+local utils = mp.utils
 local SelectionMenu = require('modules.selectionmenu')
-
 
 function trim(s)
     return s:gsub('^%s*(.-)%s*$', '%1')
@@ -36,19 +35,6 @@ function read_config(path, default)
     return ret
 end
 
-function save_config(path, data)
-    local file = io.open(path, 'w')
-
-    if file then
-        for key, value in pairs(data) do
-            file:write(key .. '=' .. value)
-            file:write('\n')
-        end
-        
-        file:close()
-    end
-end
-
 local default_config = {
     secondary_sub_area=0.25,
     secondary_sub_lang=''
@@ -64,7 +50,7 @@ for lang in config['secondary_sub_lang']:gmatch('([^,(?! )]+)') do
 end
 
 
-SubMode = {
+local SubMode = {
     Default = 1,
     Reading = 2,
     Recall = 3,
@@ -104,7 +90,7 @@ end
 
 
 local function get_active_subtitle_track_path(secondary, only_external)
-    track_selected_val = secondary and '1' or '0'
+    local track_selected_val = secondary and '1' or '0'
     only_external = only_external == true
 
     local sub_track_path
@@ -122,6 +108,7 @@ local function get_active_subtitle_track_path(secondary, only_external)
                 local track_codec = mp.get_property(string.format('track-list/%d/codec', i))
                 sub_track_path = string.format('%s*%s', track_ff_index, track_codec)
             end
+
             break
         end
     end
@@ -199,9 +186,13 @@ local function get_retime_sync_source_list()
 
             if track_path == nil then
                 track_path = mp.get_property('path')
-                local track_id = mp.get_property_native(string.format('track-list/%d/id', i)) - 1
+                track_id = mp.get_property_native(string.format('track-list/%d/id', i)) - 1
                 local ff_type = 'a'
-                if track_type == 'sub' then ff_type = 's' end
+
+                if track_type == 'sub' then
+                    ff_type = 's'
+                end
+
                 track_ff_id = string.format('%s:%d', ff_type, track_id)
             else
                 track_ff_id = 's:0'
@@ -217,7 +208,7 @@ end
 
 local function on_initialize()
     -- get ipc handle
-    ipc_handle = get_ipc_handle()
+    local ipc_handle = get_ipc_handle()
 
     if ipc_handle == nil then
         mp.osd_message('ERROR: Getting mpv handle failed.')
@@ -262,7 +253,7 @@ local function on_initialize()
     
     mp.command_native_async(
         { name = 'subprocess', args = cmd_args, playback_only = false, capture_stderr = true },
-        function(res, val, err)
+        function()
             mp.osd_message('The Migaku plugin shut down.\n\n' ..
                            'If you think this is an error please submit a bug report and attach log.txt from the plugin directory.\n\n' ..
                            'Thank you!\n\n' ..
@@ -273,7 +264,7 @@ local function on_initialize()
 end
 
 
-local function on_subtitle(property, value)
+local function on_subtitle(_, value)
     -- ignore subtitle clear callbacks
     if value == nil or value == "" then
         return
@@ -299,7 +290,7 @@ local function on_subtitle(property, value)
 end
 
 
-local function on_time_pos_change(property, value)
+local function on_time_pos_change(_, value)
     if value == nil or sub_pause_time == nil then
         return
     end
@@ -325,7 +316,7 @@ local function on_time_pos_change(property, value)
 end
 
 
-local function on_pause_change(name, value)
+local function on_pause_change(_, value)
     if sub_mode == SubMode.Recall then
         mp.set_property_native('sub-visibility', value)
     end
@@ -354,9 +345,8 @@ end
 local function on_script_message(cmd, ...)
     if cmd == 'remove_inactive_parsed_subs' then
         remove_parsed_subtitles(true)
-
     elseif cmd == 'sub_mode' then
-        mode_str = ...
+        local mode_str = ...
         mode_str = mode_str:lower()
 
         if mode_str == 'reading' then
@@ -415,7 +405,7 @@ local function on_migaku_open()
 end
 
 
-resync_menu = SelectionMenu:create('Select track to sync current subtitles to:', {}, 26, 32)
+local resync_menu = SelectionMenu:create('Select track to sync current subtitles to:', {}, 26, 32)
 
 local function on_resync_menu_confirm(entry)
     mp.commandv('script-message', '@migaku', 'resync', resync_menu.resync_external_sub, entry.path, entry.ff_id)
@@ -431,7 +421,7 @@ local function on_migaku_resync()
         return
     end
 
-    entries = get_retime_sync_source_list()
+    local entries = get_retime_sync_source_list()
 
     if #entries < 1 then
         mp.osd_message('No tracks audio or subtitle tracks were found for resyncing.')
@@ -444,7 +434,7 @@ local function on_migaku_resync()
 end
 
 
-local function on_mouse_move(name, value)
+local function on_mouse_move(_, value)
     local secondary_subs_enabled = value['hover']
 
     if secondary_subs_enabled then
@@ -469,7 +459,7 @@ local function get_auto_secondary_sid()
             for i = 0, (tracks_count - 1) do
                 local track_type = mp.get_property(string.format('track-list/%d/type', i))
                 if track_type == 'sub' then
-                    sub_track_path = mp.get_property(string.format('track-list/%d/external-filename', i))
+                    local sub_track_path = mp.get_property(string.format('track-list/%d/external-filename', i))
                     if (sub_track_path == nil) == (check_internal == 1) then
                         local track_id = mp.get_property(string.format('track-list/%d/id', i))
                         local track_lang = mp.get_property(string.format('track-list/%d/lang', i))

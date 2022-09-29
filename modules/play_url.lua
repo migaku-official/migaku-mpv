@@ -79,8 +79,13 @@ function url_play(mode)
     end
 end
 
-function url_play_replace() url_play('replace') end
-function url_play_append() url_play('append-play') end
+function url_play_replace()
+	url_play('replace')
+end
+
+function url_play_append()
+	url_play('append-play')
+end
 
 
 mp.add_key_binding('y', 'url_play_replace', url_play_replace)
