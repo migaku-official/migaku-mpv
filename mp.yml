@@ -1,6 +1,6 @@
 # Taken from: https://github.com/mpv-player/mpv/blob/master/DOCS/man/lua.rst
 ---
-base: lua53
+base: lua51
 globals:
   mp.command:
     args:
@@ -111,6 +111,8 @@ globals:
   mp.msg.trace:
     args:
       - type: "..."
+  mp.utils:
+    property: full-write
   mp.utils.getcwd:
     args:
       - required: false
