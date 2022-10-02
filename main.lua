@@ -1,3 +1,4 @@
+mp.utils = require("mp.utils") -- Required for selene to work properly
 local utils = mp.utils
 local SelectionMenu = require('modules.selectionmenu')
 
