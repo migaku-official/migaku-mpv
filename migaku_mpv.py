@@ -338,125 +338,135 @@ class SubtitleLoadError(Exception):
 
 
 def load_subs_from_info(sub_info):
-        sub_path = None
+    sub_path = None
 
-        if '*' in sub_info:
-            internal_sub_info = sub_info.split('*')
-            if len(internal_sub_info) == 2:
-                ffmpeg_track = internal_sub_info[0]
-                sub_codec = internal_sub_info[1]
-                if sub_codec in ['subrip', 'ass']:
-                    if not ffmpeg:
-                        raise SubtitleLoadError('Using internal subtitles requires ffmpeg to be located in the plugin directory.')
-                    mpv.show_text('Exporting internal subtitle track...', duration=150.0)    # Next osd message will close it
-                    if sub_codec == 'subrip':
-                        sub_extension = 'srt'
-                    else:
-                        sub_extension = sub_codec
-                    sub_path = tmp_dir + '/' + str(pathlib.Path(media_path).stem) + '.' + sub_extension
-                    args = [ffmpeg, '-y', '-loglevel', 'error', '-i', media_path, '-map', '0:' + ffmpeg_track, sub_path]
-                    try:
-                        timeout = subtitle_export_timeout if subtitle_export_timeout > 0 else None
-                        subprocess.run(args, timeout=timeout)
-                        if not os.path.isfile(sub_path):
-                            raise FileNotFoundError
-                    except TimeoutError:
-                        raise SubtitleLoadError('Exporting internal subtitle track timed out.')
-                    except:
-                        raise SubtitleLoadError('Exporting internal subtitle track failed.')
+    if '*' in sub_info:
+        internal_sub_info = sub_info.split('*')
+        if len(internal_sub_info) == 2:
+            ffmpeg_track = internal_sub_info[0]
+            sub_codec = internal_sub_info[1]
+
+            if sub_codec in ['subrip', 'ass']:
+                if not ffmpeg:
+                    raise SubtitleLoadError('Using internal subtitles requires ffmpeg to be located in the plugin directory.')
+
+                mpv.show_text('Exporting internal subtitle track...', duration=150.0)    # Next osd message will close it
+
+                if sub_codec == 'subrip':
+                    sub_extension = 'srt'
                 else:
-                    raise SubtitleLoadError('Selected internal subtitle track is not supported.\n\nOnly SRT and ASS tracks are supported.\n\nSelected track is ' + sub_codec)
-        else:
-            sub_path = sub_info
+                    sub_extension = sub_codec
 
-        if not sub_path:    # Should not happen
-            raise SubtitleLoadError('Unkown error occured.')
+                # Use "export" as the file path for ffmpeg instead of the video file name if the media being played is on the web (e.x. Jellyfin/Plex)
+                export = "export" if media_path.startswith("http") else str(pathlib.Path(media_path).stem)
 
-        # Support drag & drop subtitle files on some systems
-        sub_path = path_clean(sub_path)
-
-        # Web subtitle?
-        is_websub = False
-        if sub_path.startswith('edl://'):
-            i = sub_path.rfind('http')
-            if i >= 0:
-                url = sub_path[i:]
+                sub_path = tmp_dir + '/' + export + '.' + sub_extension
+                args = [ffmpeg, '-y', '-loglevel', 'error', '-i', media_path, '-map', '0:' + ffmpeg_track, sub_path]
 
                 try:
-                    response = requests.get(url)
-                    tmp_sub_path = os.path.join(tmp_dir, 'websub_%d.vtt' % round(time.time() * 1000))
-                    with open(tmp_sub_path, 'wb') as f:
-                        f.write(response.content)
+                    timeout = subtitle_export_timeout if subtitle_export_timeout > 0 else None
 
-                    sub_path = tmp_sub_path
-                    is_websub = True
-                except Exception:
-                    raise SubtitleLoadError('Downloading web subtitles failed.')
+                    subprocess.run(args, timeout=timeout)
 
-        elif sub_path.startswith('http'):
+                    if not os.path.isfile(sub_path):
+                        raise FileNotFoundError
+                except TimeoutError:
+                    raise SubtitleLoadError('Exporting internal subtitle track timed out.')
+                except:
+                    raise SubtitleLoadError('Exporting internal subtitle track failed.')
+            else:
+                raise SubtitleLoadError('Selected internal subtitle track is not supported.\n\nOnly SRT and ASS tracks are supported.\n\nSelected track is ' + sub_codec)
+    else:
+        sub_path = sub_info
+
+    if not sub_path:    # Should not happen
+        raise SubtitleLoadError('Unkown error occured.')
+
+    # Support drag & drop subtitle files on some systems
+    sub_path = path_clean(sub_path)
+
+    # Web subtitle?
+    is_websub = False
+    if sub_path.startswith('edl://'):
+        i = sub_path.rfind('http')
+        if i >= 0:
+            url = sub_path[i:]
+
             try:
-                response = requests.get(sub_path)
-                tmp_sub_path = os.path.join(tmp_dir, 'websub_%d' % round(time.time() * 1000))
+                response = requests.get(url)
+                tmp_sub_path = os.path.join(tmp_dir, 'websub_%d.vtt' % round(time.time() * 1000))
                 with open(tmp_sub_path, 'wb') as f:
                     f.write(response.content)
 
                 sub_path = tmp_sub_path
+                is_websub = True
             except Exception:
                 raise SubtitleLoadError('Downloading web subtitles failed.')
 
-        if not os.path.isfile(sub_path):
-            print('SUBS Not found:', sub_path)
-            raise SubtitleLoadError('The subtitle file "%s" was not found.' % sub_path)
-
-        # Determine subs encoding
-        subs_encoding = 'utf-8'
-
+    elif sub_path.startswith('http'):
         try:
-            subs_f = open(sub_path, 'rb')
-            subs_data = subs_f.read()
-            subs_f.close()
+            response = requests.get(sub_path)
+            tmp_sub_path = os.path.join(tmp_dir, 'websub_%d' % round(time.time() * 1000))
+            with open(tmp_sub_path, 'wb') as f:
+                f.write(response.content)
 
-            boms_for_enc = [
-                ('utf-32',      (codecs.BOM_UTF32_LE, codecs.BOM_UTF32_BE)),
-                ('utf-16',      (codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)),
-                ('utf-8-sig',   (codecs.BOM_UTF8,)),
-            ]
+            sub_path = tmp_sub_path
+        except Exception:
+            raise SubtitleLoadError('Downloading web subtitles failed.')
 
-            for enc, boms in boms_for_enc:
-                if any(subs_data.startswith(bom) for bom in boms):
-                    subs_encoding = enc
-                    print('SUBS: Detected encoding (bom):', enc)
-                    break
-            else:
-                chardet_ret = chardet.detect(subs_data)
-                subs_encoding = chardet_ret['encoding']
-                print('SUBS: Detected encoding (chardet):', chardet_ret)
-        except:
-            print('SUBS: Detecting encoding failed. Defaulting to utf-8')
+    if not os.path.isfile(sub_path):
+        print('SUBS Not found:', sub_path)
+        raise SubtitleLoadError('The subtitle file "%s" was not found.' % sub_path)
 
-        # Parse subs and generate json for frontend
-        try:
-            with open(sub_path, encoding=subs_encoding, errors='replace') as fp:
-                subs = pysubs2.SSAFile.from_file(fp)
-        except:
-            raise SubtitleLoadError('Loading subtitle file "%s" failed.' % sub_path)
+    # Determine subs encoding
+    subs_encoding = 'utf-8'
 
-        subs.sort()
-        subs_list = []
+    try:
+        subs_f = open(sub_path, 'rb')
+        subs_data = subs_f.read()
+        subs_f.close()
 
-        for s in subs:
-            text = s.plaintext.strip()
+        boms_for_enc = [
+            ('utf-32',      (codecs.BOM_UTF32_LE, codecs.BOM_UTF32_BE)),
+            ('utf-16',      (codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)),
+            ('utf-8-sig',   (codecs.BOM_UTF8,)),
+        ]
 
-            # Temporary to correct pysubs2 parsing mistakes
-            if is_websub:
-                text = text.split('\n\n')[0]
+        for enc, boms in boms_for_enc:
+            if any(subs_data.startswith(bom) for bom in boms):
+                subs_encoding = enc
+                print('SUBS: Detected encoding (bom):', enc)
+                break
+        else:
+            chardet_ret = chardet.detect(subs_data)
+            subs_encoding = chardet_ret['encoding']
+            print('SUBS: Detected encoding (chardet):', chardet_ret)
+    except:
+        print('SUBS: Detecting encoding failed. Defaulting to utf-8')
 
-            if not skip_empty_subs or text.strip():
-                sub_start = max(s.start + subs_delay, 0) // 10 * 10
-                sub_end = max(s.end + subs_delay, 0) // 10 * 10
-                subs_list.append( { 'text': text, 'start': sub_start, 'end': sub_end } )
+    # Parse subs and generate json for frontend
+    try:
+        with open(sub_path, encoding=subs_encoding, errors='replace') as fp:
+            subs = pysubs2.SSAFile.from_file(fp)
+    except:
+        raise SubtitleLoadError('Loading subtitle file "%s" failed.' % sub_path)
 
-        return subs_list
+    subs.sort()
+    subs_list = []
+
+    for s in subs:
+        text = s.plaintext.strip()
+
+        # Temporary to correct pysubs2 parsing mistakes
+        if is_websub:
+            text = text.split('\n\n')[0]
+
+        if not skip_empty_subs or text.strip():
+            sub_start = max(s.start + subs_delay, 0) // 10 * 10
+            sub_end = max(s.end + subs_delay, 0) // 10 * 10
+            subs_list.append( { 'text': text, 'start': sub_start, 'end': sub_end } )
+
+    return subs_list
 
 
 ### Called when user presses the migaku key in mpv, transmits info about playing environment
