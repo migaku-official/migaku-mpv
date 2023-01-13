@@ -109,7 +109,7 @@
 <body>
 
     <div id="header" class="migaku-ignore">
-        <div onclick="upadte_mpv_subs()" class="migaku-toolbar-item migaku-toolbar-button header-item flexFloatRight">⟳ MPV Subs</div>
+        <div onclick="update_mpv_subs()" class="migaku-toolbar-item migaku-toolbar-button header-item flexFloatRight">⟳ MPV Subs</div>
         <div onclick="anki_mass_export(true)" class="migaku-toolbar-item migaku-toolbar-button header-item">Export 1T</div>
         <div onclick="anki_mass_export(false)" class="migaku-toolbar-item migaku-toolbar-button header-item">Export All</div>
 
@@ -637,7 +637,7 @@
         setInterval(grabLangSettings, 200);
 
         // Sends subtitles with syntax to mpv
-        function upadte_mpv_subs()
+        function update_mpv_subs()
         {
             if (lang == 'Disabled')
             {
