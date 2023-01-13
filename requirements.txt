@@ -1,6 +1,6 @@
 psutil
 requests
 pysubs2
-cchardet
+faust-cchardet
 ffsubsync
 rubysubs>=0.1.4
